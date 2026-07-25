@@ -3,6 +3,10 @@ package plp.backend;
 import com.ipoxo.plcore.lib.Log;
 import plp.lib.DB;
 
+/*
+  ./gradlew shadowJar
+ */
+
 public class Main
 {
   public static void main(String[] args)

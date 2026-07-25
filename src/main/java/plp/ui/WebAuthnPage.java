@@ -16,7 +16,7 @@ public class WebAuthnPage
       html(
         head(
           title(mainTitle),
-          script().withSrc("/js/webauthn.js")
+          script().withSrc("js/webauthn.js")
         ),
         body()
           .withStyle("font-family: Arial, Helvetica, sans-serif; background-color:#f5f5f5;")

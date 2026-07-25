@@ -17,25 +17,25 @@ public class WebAuthnHandler
       ctx.result(WebAuthnPage.besStart(ctx));
     });
 
-    config.routes.post("/webauthn/register/start",  ctx ->
+    config.routes.post("/register/start",  ctx ->
     {
       ctx.contentType("application/json; charset=UTF-8");
       WebAuthn.registerStart(ctx);
     });
 
-    config.routes.post("/webauthn/register/finish", ctx ->
+    config.routes.post("/register/finish", ctx ->
     {
       ctx.contentType("application/json; charset=UTF-8");
       WebAuthn.registerFinish(ctx);
     });
 
-    config.routes.post("/webauthn/login/options",   ctx ->
+    config.routes.post("/login/options",   ctx ->
     {
       ctx.contentType("application/json; charset=UTF-8");
       WebAuthn.loginOptions(ctx);
     });
 
-    config.routes.post("/webauthn/login/verify",    ctx ->
+    config.routes.post("/login/verify",    ctx ->
     {
       ctx.contentType("application/json; charset=UTF-8");
       WebAuthn.loginVerify(ctx);

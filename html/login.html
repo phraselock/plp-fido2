@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FIDO2 – Login</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      background: #f0f2f5;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+      padding: 40px;
+      width: 100%;
+      max-width: 440px;
+      text-align: center;
+    }
+
+    .icon {
+      font-size: 3rem;
+      margin-bottom: 16px;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      color: #1a1a2e;
+      margin-bottom: 6px;
+    }
+
+    .subtitle {
+      font-size: 0.85rem;
+      color: #888;
+      margin-bottom: 32px;
+    }
+
+    button {
+      width: 100%;
+      padding: 14px;
+      background: #1a1a2e;
+      color: #fff;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+    }
+
+    button:hover  { background: #2a2a4e; }
+    button:active { background: #0a0a1e; }
+    button:disabled { background: #aaa; cursor: default; }
+
+    .status {
+      margin-top: 20px;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      display: none;
+      text-align: left;
+    }
+
+    .status.success { background: #e6f9ee; color: #1a7a40; border: 1px solid #b7eacf; display: block; }
+    .status.error   { background: #fff0f0; color: #c0392b; border: 1px solid #f5c6c6; display: block; }
+    .status.info    { background: #eef2ff; color: #3a5ce0; border: 1px solid #c5d0fa; display: block; }
+
+    .footer {
+      margin-top: 24px;
+      font-size: 0.8rem;
+      color: #aaa;
+    }
+
+    .footer a { color: #4a6cf7; text-decoration: none; }
+  </style>
+</head>
+<body>
+<div class="card">
+  <div class="icon">🔑</div>
+  <h1>Sign in with your passkey</h1>
+  <p class="subtitle">No password needed. Your device authenticates you.</p>
+
+  <button id="btn" onclick="doLogin()">
+    <span>Sign in</span>
+  </button>
+
+  <div id="status" class="status"></div>
+
+  <p class="footer">No passkey yet? <a href="register.html">Register</a></p>
+</div>
+
+<script>
+  // ── Configuration ────────────────────────────────────────────────────────────
+  const API_BASE = '/webauthn';   // adjust to match your nginx location
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  function setStatus(msg, type) {
+    const el = document.getElementById('status');
+    el.textContent = msg;
+    el.className = 'status ' + type;
+  }
+
+  function base64urlToBytes(b64) {
+    b64 = b64.replace(/-/g, '+').replace(/_/g, '/');
+    const pad = b64.length % 4;
+    if (pad) b64 += '='.repeat(4 - pad);
+    const bin = atob(b64);
+    return Uint8Array.from(bin, c => c.charCodeAt(0));
+  }
+
+  async function doLogin() {
+    const btn = document.getElementById('btn');
+    btn.disabled = true;
+    setStatus('Contacting server…', 'info');
+
+    try {
+      const optRes = await fetch(API_BASE + '/login/options', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({})
+      });
+      if (!optRes.ok) throw new Error('Server error: ' + optRes.status);
+
+      const options = await optRes.json();
+      options.challenge = base64urlToBytes(options.challenge);
+
+      setStatus('Waiting for authenticator…', 'info');
+      const assertion = await navigator.credentials.get({
+        publicKey: {
+          challenge:        options.challenge,
+          rpId:             options.rpId,
+          timeout:          options.timeout,
+          userVerification: options.userVerification
+        }
+      });
+
+      const verifyRes = await fetch(API_BASE + '/login/verify', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify(assertion)
+      });
+
+      const result = await verifyRes.json();
+      setStatus(result.success ? '✓ Login successful' : '✗ Login failed', result.success ? 'success' : 'error');
+
+    } catch (err) {
+      setStatus('✗ ' + err.message, 'error');
+    } finally {
+      btn.disabled = false;
+    }
+  }
+</script>
+</body>
+</html>
