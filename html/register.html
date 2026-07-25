@@ -12,6 +12,7 @@
       background: #f0f2f5;
       min-height: 100vh;
       display: flex;
+      flex-direction: column;
       align-items: center;
       justify-content: center;
     }
@@ -23,6 +24,7 @@
       padding: 40px;
       width: 100%;
       max-width: 440px;
+      position: relative;
     }
 
     h1 {
@@ -101,10 +103,28 @@
     }
 
     .footer a { color: #4a6cf7; text-decoration: none; }
+
+    .logo {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      max-height: 48px;
+      max-width: 160px;
+      object-fit: contain;
+      border-radius: 8px;
+    }
+
+    .copyright {
+      margin: 16px auto 40px auto;
+      text-align: center;
+      font-size: 11px;
+      color: #aaa;
+    }
   </style>
 </head>
 <body>
 <div class="card">
+  <img src="img/logo.png" alt="Logo" class="logo">
   <h1>Create your passkey</h1>
   <p class="subtitle">Register with FIDO2 — no password required.</p>
 
@@ -120,6 +140,7 @@
 
   <p class="footer">Already registered? <a href="login.html">Sign in</a></p>
 </div>
+<p class="copyright">© 2026 iPoxo IT GmbH — All rights reserved</p>
 
 <script>
   // ── Configuration ────────────────────────────────────────────────────────────
