@@ -80,11 +80,17 @@ public class WebAuthn
         Map.of("type", "public-key", "alg", -7),  // ES256
         Map.of("type", "public-key", "alg", -257) // RS256
       ),
+      // Roaming only (USB/NFC/BLE hardware keys — no Touch ID / Windows Hello):
       "authenticatorSelection", Map.of(
         "authenticatorAttachment", "cross-platform",
         "residentKey", "required",
         "userVerification", "preferred"
       )
+      // Both roaming and platform authenticators (Touch ID, Windows Hello, hardware keys):
+      // "authenticatorSelection", Map.of(
+      //   "residentKey", "required",
+      //   "userVerification", "preferred"
+      // )
     );
 
     ctx.sessionAttribute("userid", PLTool.byteArrayToHexString(userId));

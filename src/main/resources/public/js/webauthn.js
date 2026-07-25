@@ -41,7 +41,7 @@ function _WebAuthnLib(param)
 
     async function _register() {
         try {
-            // 1. Challenge + Parameter vom Server holen
+            // 1. Challenge + get params from server
             const params = {
                 displayname: document.getElementById("displayname").innerText.trim(),
                 user: document.getElementById("user").innerText.trim(),
@@ -67,7 +67,7 @@ function _WebAuthnLib(param)
 
             //alert(JSON.stringify(cred));
 
-            // 4. Ergebnis in transportierbares JSON umwandeln
+            // 2. convert to json
             const result = {
                 id: cred.id,
                 rawId: bytesToBase64url(cred.rawId),
@@ -78,15 +78,14 @@ function _WebAuthnLib(param)
                 }
             };
 
-            //alert("...und jetzt das Finish")
-            // 5. An Server schicken
+            // 3. Send to server
             const finish = await fetch("register/finish", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(result)
             });
 
-            // 6. Ergebnis anzeigen
+            // 4. Show result
             document.getElementById("output").innerText = await finish.text();
 
         } catch (err) {
@@ -108,7 +107,7 @@ function _WebAuthnLib(param)
         //alert("options:\n" + JSON.stringify(options));
         //return;
 
-        // Challenge und andere Felder Base64URL → ArrayBuffer
+        // Challenge and other fields as Base64URL → ArrayBuffer
         //options.challenge = base64urlToBuffert(options.challenge);
         options.challenge = base64urlToBytes(options.challenge);
 
@@ -123,22 +122,6 @@ function _WebAuthnLib(param)
                 userVerification: options.userVerification
             }
         });
-
-        /* ...funktioniert nicht...
-        const assertion = await navigator.credentials.get({
-            publicKey: {
-                challenge: options.challenge,
-                rpId: options.rpId,
-                timeout: options.timeout,
-                userVerification: "discouraged",
-                allowCredentials: [{
-                    type: "public-key",
-                    id: base64urlToBytes(options.credentialId),
-                    transports: ["usb", "ble", "nfc", "internal"]
-                }]
-            }
-        });
-        */
 
         const resVerify = await fetch("login/verify", {
             method: "POST",
@@ -155,7 +138,6 @@ function _WebAuthnLib(param)
         }
 
     }
-
 
     this.init = _init;
     this.register = _register;
