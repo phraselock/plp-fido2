@@ -17,9 +17,13 @@ import com.webauthn4j.data.client.challenge.Challenge;
 import com.webauthn4j.data.client.challenge.DefaultChallenge;
 import com.webauthn4j.server.ServerProperty;
 
+import io.javalin.http.Cookie;
 import io.javalin.http.Context;
-import plp.lib.PLTool;
+import io.javalin.http.SameSite;
 import plp.lib.CredentialDao;
+import plp.lib.PendingUserDao;
+import plp.lib.PLTool;
+import plp.lib.SessionDao;
 
 import java.security.SecureRandom;
 import java.util.*;
@@ -32,9 +36,20 @@ public class WebAuthn
     Map<String, Object> json = ctx.bodyAsClass(Map.class);
 
     String displayname = (String) json.get("displayname");
-    String user = (String) json.get("user");
-    String rpid = (String) json.get("rpid");
-    String device = (String) json.get("device");
+    String user        = (String) json.get("user");
+    String rpid        = (String) json.get("rpid");
+    String device      = (String) json.get("device");
+    String token       = (String) json.get("token");
+
+    // Validate registration token
+    if (!PendingUserDao.isValidToken(user, token))
+    {
+      ctx.status(403).result("Invalid or missing registration token");
+      return;
+    }
+
+    // Store email for markUsed after finish
+    ctx.sessionAttribute("reg_email", user);
 
     // 1. Generate challenge
     byte[] challengeBytes = new byte[32];
@@ -166,6 +181,10 @@ public class WebAuthn
     CredentialDao.setCredentialId(userid,PLTool.byteArrayToHexString(credentialId));
     CredentialDao.setPublicKey(userid,PLTool.byteArrayToHexString(publicKey));
     CredentialDao.setSignCounter(userid,authData.getSignCount());
+
+    // Mark registration token as used
+    String regEmail = ctx.sessionAttribute("reg_email");
+    if (regEmail != null) PendingUserDao.markUsed(regEmail);
 
     ctx.result("Registration successful!");
   }
@@ -323,9 +342,46 @@ public class WebAuthn
       CredentialDao.updateSignatureCounter(credentialId,updateSignCount);
     }
 
-    // 11. Set session
-    ctx.sessionAttribute("userId", credStored.userId());
-    ctx.json((Map.of("success", true,"reason","none")));
+    // 11. Create persistent session cookie
+    String sessionId = SessionDao.create(credStored.userId());
+    Cookie sessionCookie = new Cookie("plp_fido2_session", sessionId);
+    sessionCookie.setPath("/");
+    sessionCookie.setMaxAge(60 * 60 * 24 * 30);
+    sessionCookie.setHttpOnly(true);
+    sessionCookie.setSameSite(SameSite.STRICT);
+    ctx.cookie(sessionCookie);
+
+    ctx.json((Map.of("success", true, "reason", "none")));
+  }
+
+  public static void getSession(Context ctx)
+  {
+    String sessionId = ctx.cookie("plp_fido2_session");
+    String userId    = SessionDao.findUserId(sessionId);
+    if (userId == null)
+    {
+      ctx.status(401).result("Not authenticated");
+      return;
+    }
+    CredentialDao.UserInfo info = CredentialDao.findUserInfoById(userId);
+    if (info == null)
+    {
+      ctx.status(401).result("Not authenticated");
+      return;
+    }
+    ctx.json(Map.of(
+      "userId",      info.userId(),
+      "email",       info.user(),
+      "displayName", info.displayName() != null ? info.displayName() : ""
+    ));
+  }
+
+  public static void logout(Context ctx)
+  {
+    String sessionId = ctx.cookie("plp_fido2_session");
+    SessionDao.delete(sessionId);
+    ctx.removeCookie("plp_fido2_session");
+    ctx.status(200).result("OK");
   }
 
   private static String buildOrigin(String schema, String host, String port)

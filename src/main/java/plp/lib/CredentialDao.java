@@ -2,6 +2,8 @@ package plp.lib;
 
 import com.ipoxo.plcore.lib.Log;
 import java.sql.*;
+import java.util.ArrayList;
+import java.util.List;
 
 public final class CredentialDao {
 
@@ -125,6 +127,72 @@ public final class CredentialDao {
 
     } catch (SQLException e) {
       Log.e ("Exception CredentialDao.updateSignatureCounter: " + e.getLocalizedMessage());
+    }
+  }
+
+  public record UserInfo(String userId, String user, String displayName) {}
+
+  public static UserInfo findUserInfoById(String userId)
+  {
+    String sql = "SELECT user_id, user, display_name FROM credentials WHERE user_id = ?";
+    try (Connection conn = DB.open();
+         PreparedStatement ps = conn.prepareStatement(sql))
+    {
+      ps.setString(1, userId);
+      try (ResultSet rs = ps.executeQuery())
+      {
+        if (!rs.next()) return null;
+        return new UserInfo(rs.getString("user_id"), rs.getString("user"), rs.getString("display_name"));
+      }
+    } catch (SQLException e) {
+      Log.e("Exception CredentialDao.findUserInfoById: " + e.getLocalizedMessage());
+      return null;
+    }
+  }
+
+  public record CredentialSummary(String userId, String user, String displayName, String domain) {}
+
+  public static List<CredentialSummary> findAll()
+  {
+    List<CredentialSummary> result = new ArrayList<>();
+    String sql = "SELECT user_id, user, display_name, domain FROM credentials ORDER BY user";
+    try (Connection conn = DB.open();
+         PreparedStatement ps = conn.prepareStatement(sql);
+         ResultSet rs = ps.executeQuery())
+    {
+      while (rs.next())
+        result.add(new CredentialSummary(rs.getString("user_id"), rs.getString("user"),
+                                         rs.getString("display_name"), rs.getString("domain")));
+    } catch (SQLException e) {
+      Log.e("Exception CredentialDao.findAll: " + e.getLocalizedMessage());
+    }
+    return result;
+  }
+
+  public static void updateDisplayName(String userId, String displayName)
+  {
+    String sql = "UPDATE credentials SET display_name = ? WHERE user_id = ?";
+    try (Connection conn = DB.open();
+         PreparedStatement ps = conn.prepareStatement(sql))
+    {
+      ps.setString(1, displayName);
+      ps.setString(2, userId);
+      ps.executeUpdate();
+    } catch (SQLException e) {
+      Log.e("Exception CredentialDao.updateDisplayName: " + e.getLocalizedMessage());
+    }
+  }
+
+  public static void deleteByUserId(String userId)
+  {
+    String sql = "DELETE FROM credentials WHERE user_id = ?";
+    try (Connection conn = DB.open();
+         PreparedStatement ps = conn.prepareStatement(sql))
+    {
+      ps.setString(1, userId);
+      ps.executeUpdate();
+    } catch (SQLException e) {
+      Log.e("Exception CredentialDao.deleteByUserId: " + e.getLocalizedMessage());
     }
   }
 

@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>FIDO2 – Dashboard</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: Arial, Helvetica, sans-serif;
+      background: #f0f2f5;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .card {
+      background: #fff;
+      border-radius: 12px;
+      box-shadow: 0 2px 12px rgba(0,0,0,0.1);
+      padding: 40px;
+      width: 100%;
+      max-width: 440px;
+      position: relative;
+    }
+
+    .logo {
+      position: absolute;
+      top: 16px;
+      right: 16px;
+      max-height: 48px;
+      max-width: 160px;
+      object-fit: contain;
+      border-radius: 8px;
+    }
+
+    .passkey-icon {
+      display: block;
+      margin: 0 auto 20px auto;
+      width: 40px;
+      height: 40px;
+      object-fit: contain;
+    }
+
+    h1 {
+      font-size: 1.4rem;
+      color: #1a1a2e;
+      margin-bottom: 6px;
+      text-align: center;
+    }
+
+    .subtitle {
+      font-size: 0.85rem;
+      color: #888;
+      margin-bottom: 28px;
+      text-align: center;
+    }
+
+    .info-block {
+      background: #f8f9ff;
+      border: 1px solid #e8ebff;
+      border-radius: 10px;
+      padding: 16px 18px;
+      margin-bottom: 24px;
+      display: none;
+    }
+
+    .info-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 6px 0;
+      font-size: 0.88rem;
+    }
+
+    .info-row + .info-row {
+      border-top: 1px solid #eef0ff;
+    }
+
+    .info-label {
+      color: #888;
+      font-weight: 600;
+      text-transform: uppercase;
+      font-size: 0.72rem;
+      letter-spacing: 0.5px;
+    }
+
+    .info-value {
+      color: #1a1a2e;
+      font-weight: 500;
+    }
+
+    button {
+      width: 100%;
+      padding: 12px;
+      background: #e8ebff;
+      color: #4a6cf7;
+      border: none;
+      border-radius: 8px;
+      font-size: 1rem;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    button:hover  { background: #d4d9fc; }
+    button:active { background: #bcc4f8; }
+
+    .status {
+      margin-top: 20px;
+      padding: 12px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      display: none;
+      text-align: center;
+    }
+
+    .status.error { background: #fff0f0; color: #c0392b; border: 1px solid #f5c6c6; display: block; }
+    .status.info  { background: #eef2ff; color: #3a5ce0; border: 1px solid #c5d0fa; display: block; }
+
+    .copyright {
+      margin: 16px auto 40px auto;
+      text-align: center;
+      font-size: 11px;
+      color: #aaa;
+    }
+  </style>
+</head>
+<body>
+<div class="card">
+  <img src="img/logo.png" alt="Logo" class="logo">
+  <img src="img/passkey.png" alt="Passkey" class="passkey-icon">
+
+  <h1 id="heading">Welcome!</h1>
+  <p class="subtitle" id="subtitle">Verifying your session…</p>
+
+  <div class="info-block" id="info-block">
+    <div class="info-row">
+      <span class="info-label">Display name</span>
+      <span class="info-value" id="display-name">—</span>
+    </div>
+    <div class="info-row">
+      <span class="info-label">E-Mail</span>
+      <span class="info-value" id="email">—</span>
+    </div>
+  </div>
+
+  <button id="btn-logout" style="display:none" onclick="doLogout()">Sign out</button>
+
+  <div id="status" class="status"></div>
+</div>
+<p class="copyright">© 2026 iPoxo IT GmbH — All rights reserved</p>
+
+<script>
+  // ── Configuration ────────────────────────────────────────────────────────────
+  const API_BASE = '/webauthn';   // adjust to match your nginx location
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  function setStatus(msg, type) {
+    const el = document.getElementById('status');
+    el.textContent = msg;
+    el.className = 'status ' + type;
+  }
+
+  async function checkSession() {
+    try {
+      const res = await fetch(API_BASE + '/session', { credentials: 'same-origin' });
+
+      if (res.status === 401) {
+        window.location.href = 'login.html';
+        return;
+      }
+      if (!res.ok) {
+        setStatus('Session check failed (' + res.status + ')', 'error');
+        return;
+      }
+
+      const data = await res.json();
+      const name = data.displayName || data.email || 'User';
+
+      document.getElementById('heading').textContent     = 'Welcome, ' + name;
+      document.getElementById('subtitle').textContent    = 'You are signed in with a passkey.';
+      document.getElementById('display-name').textContent = data.displayName || '—';
+      document.getElementById('email').textContent        = data.email || '—';
+      document.getElementById('info-block').style.display = 'block';
+      document.getElementById('btn-logout').style.display = '';
+
+    } catch (err) {
+      setStatus('✗ ' + err.message, 'error');
+    }
+  }
+
+  async function doLogout() {
+    try {
+      document.getElementById('btn-logout').disabled = true;
+      setStatus('Signing out…', 'info');
+      await fetch(API_BASE + '/logout', { method: 'POST', credentials: 'same-origin' });
+      window.location.href = 'login.html';
+    } catch (err) {
+      setStatus('✗ ' + err.message, 'error');
+      document.getElementById('btn-logout').disabled = false;
+    }
+  }
+
+  checkSession();
+</script>
+</body>
+</html>

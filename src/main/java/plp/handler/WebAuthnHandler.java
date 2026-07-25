@@ -40,5 +40,16 @@ public class WebAuthnHandler
       ctx.contentType("application/json; charset=UTF-8");
       WebAuthn.loginVerify(ctx);
     });
+
+    config.routes.get("/session", ctx ->
+    {
+      ctx.contentType("application/json; charset=UTF-8");
+      WebAuthn.getSession(ctx);
+    });
+
+    config.routes.post("/logout", ctx ->
+    {
+      WebAuthn.logout(ctx);
+    });
   }
 }

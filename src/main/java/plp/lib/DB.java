@@ -9,7 +9,7 @@ import java.sql.*;
 public class DB {
 
   private static final String DB_NAME             = "phraselockWebAuthn.db";
-  private static final int CURRENT_DB_VERSION     = 1;
+  private static final int CURRENT_DB_VERSION     = 3;
 
   private static Path resolveDbPath() {
     try {
@@ -51,8 +51,8 @@ public class DB {
         checkDBVersion(false);
 
         checkExsist_credentials(RESET_DB);
-
-
+        checkExist_pendingUsers(RESET_DB);
+        checkExist_sessions(RESET_DB);
 
         if(currentDBVersion!= CURRENT_DB_VERSION)
         {
@@ -139,6 +139,53 @@ public class DB {
     }
   }
 
+  public static void checkExist_pendingUsers(boolean forceReset)
+  {
+    if (forceReset)
+    {
+      try (Connection conn = DB.open())
+      {
+        conn.setAutoCommit(false);
+        try (Statement st = conn.createStatement())
+        {
+          st.executeUpdate("DROP TABLE IF EXISTS pending_users;");
+        }
+        conn.commit();
+      } catch (SQLException e) {
+        Log.e("Exception DB.checkExist_pendingUsers (reset): " + e.getLocalizedMessage());
+      }
+    }
+
+    try (Connection conn = DB.open();
+         PreparedStatement stmt = conn.prepareStatement(
+           "SELECT name FROM sqlite_master WHERE type='table' AND name=?"))
+    {
+      stmt.setString(1, "pending_users");
+      try (ResultSet rs = stmt.executeQuery())
+      {
+        if (!rs.next())
+        {
+          conn.setAutoCommit(false);
+          try (Statement st = conn.createStatement())
+          {
+            st.executeUpdate("""
+                CREATE TABLE pending_users (
+                    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+                    email      TEXT NOT NULL UNIQUE,
+                    reg_token  TEXT NOT NULL,
+                    created_at INTEGER DEFAULT (unixepoch()),
+                    used       INTEGER DEFAULT 0
+                );
+            """);
+          }
+          conn.commit();
+        }
+      }
+    } catch (SQLException e) {
+      Log.e("Exception DB.checkExist_pendingUsers: " + e.getLocalizedMessage());
+    }
+  }
+
   public static void checkExsist_credentials(boolean forceReset)
   {
     if (forceReset)
@@ -198,6 +245,50 @@ public class DB {
     }
   }
 
+  public static void checkExist_sessions(boolean forceReset)
+  {
+    if (forceReset)
+    {
+      try (Connection conn = DB.open())
+      {
+        conn.setAutoCommit(false);
+        try (Statement st = conn.createStatement())
+        {
+          st.executeUpdate("DROP TABLE IF EXISTS sessions;");
+        }
+        conn.commit();
+      } catch (SQLException e) {
+        Log.e("Exception DB.checkExist_sessions (reset): " + e.getLocalizedMessage());
+      }
+    }
+
+    try (Connection conn = DB.open();
+         PreparedStatement stmt = conn.prepareStatement(
+           "SELECT name FROM sqlite_master WHERE type='table' AND name=?"))
+    {
+      stmt.setString(1, "sessions");
+      try (ResultSet rs = stmt.executeQuery())
+      {
+        if (!rs.next())
+        {
+          conn.setAutoCommit(false);
+          try (Statement st = conn.createStatement())
+          {
+            st.executeUpdate("""
+                CREATE TABLE sessions (
+                    id         TEXT PRIMARY KEY,
+                    user_id    TEXT NOT NULL,
+                    created_at INTEGER DEFAULT (unixepoch())
+                );
+            """);
+          }
+          conn.commit();
+        }
+      }
+    } catch (SQLException e) {
+      Log.e("Exception DB.checkExist_sessions: " + e.getLocalizedMessage());
+    }
+  }
 
 
 }

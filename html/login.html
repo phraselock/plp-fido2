@@ -177,7 +177,12 @@
       });
 
       const result = await verifyRes.json();
-      setStatus(result.success ? '✓ Login successful' : '✗ Login failed', result.success ? 'success' : 'error');
+      if (result.success) {
+        setStatus('✓ Login successful — redirecting…', 'success');
+        setTimeout(() => { window.location.href = 'dashboard.html'; }, 600);
+        return;
+      }
+      setStatus('✗ Login failed', 'error');
 
     } catch (err) {
       setStatus('✗ ' + err.message, 'error');

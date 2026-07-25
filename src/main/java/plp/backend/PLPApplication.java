@@ -3,6 +3,7 @@ package plp.backend;
 import com.ipoxo.plcore.lib.Log;
 import io.javalin.Javalin;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
+import plp.handler.AdminHandler;
 import plp.handler.WebAuthnHandler;
 import plp.lib.ConfigPathResolver;
 import plp.lib.DB;
@@ -25,6 +26,9 @@ public class PLPApplication
   private static final int         PORT        = Integer.parseInt(CONFIG.getProperty("server.port", "8080"));
   private static final int         MAX_THREADS = Integer.parseInt(CONFIG.getProperty("jetty.maxThreads", "10"));
   private static final int         MIN_THREADS = Integer.parseInt(CONFIG.getProperty("jetty.minThreads", "2"));
+
+  // External URL prefix used by nginx (e.g. "/webauthn"). Empty when no proxy.
+  public static final String PATH_PREFIX = CONFIG.getProperty("app.path.prefix", "").trim();
 
   private static Properties loadConfig()
   {
@@ -50,6 +54,20 @@ public class PLPApplication
     return Arrays.stream(props.getProperty("allowed.ips", "").split(","))
       .map(String::trim).filter(ip -> !ip.isEmpty())
       .collect(Collectors.toSet());
+  }
+
+  private static String adminToken()
+  {
+    Properties p = new Properties();
+    try (InputStream in = PLPApplication.class.getResourceAsStream("/" + PROPERTIES))
+    {
+      if (in != null) p.load(in);
+    }
+    catch (Exception ignored) {}
+    Path external = ConfigPathResolver.resolve(PROPERTIES, PLPApplication.class);
+    try (InputStream in = Files.newInputStream(external)) { p.load(in); }
+    catch (Exception ignored) {}
+    return p.getProperty("admin.token", "").trim();
   }
 
   private static Javalin web;
@@ -91,10 +109,20 @@ public class PLPApplication
         {
           ctx.status(403).result("Forbidden");
           ctx.skipRemainingHandlers();
+          return;
+        }
+
+        if (ctx.path().startsWith("/admin/"))
+        {
+          String token = adminToken();
+          if (token.isEmpty() || token.equals(ctx.queryParam("token"))) return;
+          ctx.status(403).result("Admin token required");
+          ctx.skipRemainingHandlers();
         }
       });
 
       new WebAuthnHandler().registerRoutes(config);
+      new AdminHandler().registerRoutes(config);
     });
     web.start(PORT);
 

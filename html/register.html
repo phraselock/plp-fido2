@@ -132,7 +132,11 @@
   <input type="text" id="displayname" placeholder="Jane Doe" value="Jane Doe">
 
   <label for="username">Username / E-mail</label>
-  <input type="email" id="username" placeholder="jane.doe@example.com" value="jane.doe@example.com">
+  <input type="email" id="username" placeholder="jane.doe@example.com" value="">
+
+  <label for="token">Registration token</label>
+  <input type="text" id="token" placeholder="XXXXXXXX" maxlength="8"
+         style="text-transform:uppercase;letter-spacing:3px;font-family:monospace;font-size:1.1rem;">
 
   <button id="btn" onclick="doRegister()">Register with passkey</button>
 
@@ -176,7 +180,8 @@
         displayname: document.getElementById('displayname').value.trim(),
         user:        document.getElementById('username').value.trim(),
         rpid:        window.location.hostname,
-        device:      navigator.userAgent
+        device:      navigator.userAgent,
+        token:       document.getElementById('token').value.trim().toUpperCase()
       };
 
       const startRes = await fetch(API_BASE + '/register/start', {
