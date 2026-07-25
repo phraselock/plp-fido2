@@ -48,7 +48,7 @@ function _WebAuthnLib(param)
                 rpid: document.getElementById("rpid").innerText.trim(),
                 device: navigator.userAgent
             };
-            const publicKey = await fetch("/phraselock-idp/webauthn/register/start", {
+            const publicKey = await fetch("/webauthn/register/start", {
                 method: "POST",
                 headers: {
                     "Content-Type": "application/json"
@@ -80,7 +80,7 @@ function _WebAuthnLib(param)
 
             //alert("...und jetzt das Finish")
             // 5. An Server schicken
-            const finish = await fetch("/phraselock-idp/webauthn/register/finish", {
+            const finish = await fetch("/webauthn/register/finish", {
                 method: "POST",
                 headers: { "Content-Type": "application/json" },
                 body: JSON.stringify(result)
@@ -97,7 +97,7 @@ function _WebAuthnLib(param)
 
     async function _startLogin()
     {
-        const resOptions = await fetch("/phraselock-idp/webauthn/login/options", {
+        const resOptions = await fetch("/webauthn/login/options", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify({})
@@ -140,7 +140,7 @@ function _WebAuthnLib(param)
         });
         */
 
-        const resVerify = await fetch("/phraselock-idp/webauthn/login/verify", {
+        const resVerify = await fetch("/webauthn/login/verify", {
             method: "POST",
             headers: { "Content-Type": "application/json" },
             body: JSON.stringify(assertion)

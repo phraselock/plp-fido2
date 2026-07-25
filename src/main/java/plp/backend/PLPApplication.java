@@ -61,7 +61,6 @@ public class PLPApplication
 
   public static void start()
   {
-    DB.initDB();
 
     var threadPool = new QueuedThreadPool(MAX_THREADS, MIN_THREADS, 60_000);
     threadPool.setName("jetty");
@@ -72,17 +71,17 @@ public class PLPApplication
 
       config.staticFiles.add(sf ->
       {
-        sf.hostedPath = "/phraselock-idp/js";
+        sf.hostedPath = "/js";
         sf.directory  = "/public/js";
       });
       config.staticFiles.add(sf ->
       {
-        sf.hostedPath = "/phraselock-idp/css";
+        sf.hostedPath = "/css";
         sf.directory  = "/public/css";
       });
       config.staticFiles.add(sf ->
       {
-        sf.hostedPath = "/phraselock-idp/img";
+        sf.hostedPath = "/img";
         sf.directory  = "/public/img";
       });
 
