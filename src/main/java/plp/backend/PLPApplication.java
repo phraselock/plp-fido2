@@ -52,6 +52,13 @@ public class PLPApplication
       .collect(Collectors.toSet());
   }
 
+  private static Javalin web;
+
+  public static void stop()
+  {
+    if (web != null) web.stop();
+  }
+
   public static void start()
   {
     DB.initDB();
@@ -59,7 +66,7 @@ public class PLPApplication
     var threadPool = new QueuedThreadPool(MAX_THREADS, MIN_THREADS, 60_000);
     threadPool.setName("jetty");
 
-    Javalin.create(config ->
+    web = Javalin.create(config ->
     {
       config.jetty.threadPool = threadPool;
 
@@ -89,8 +96,8 @@ public class PLPApplication
       });
 
       new WebAuthnHandler().registerRoutes(config);
-    })
-    .start(PORT);
+    });
+    web.start(PORT);
 
     Log.i("[plp-fido2] Started on port " + PORT);
   }
