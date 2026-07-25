@@ -5,6 +5,7 @@ import io.javalin.Javalin;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
 import plp.handler.WebAuthnHandler;
 import plp.lib.ConfigPathResolver;
+import plp.lib.DB;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -53,6 +54,8 @@ public class PLPApplication
 
   public static void start()
   {
+    DB.initDB();
+
     var threadPool = new QueuedThreadPool(MAX_THREADS, MIN_THREADS, 60_000);
     threadPool.setName("jetty");
 
