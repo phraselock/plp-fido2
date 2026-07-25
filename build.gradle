@@ -1,0 +1,38 @@
+plugins {
+    id 'java'
+    id 'application'
+    id 'com.github.johnrengelman.shadow' version '8.1.1'
+}
+
+group = 'com.phraselock'
+version = '1.0.0'
+
+repositories {
+    mavenCentral()
+}
+
+application {
+    mainClass = 'plp.backend.Main'
+    applicationDefaultJvmArgs = ['--enable-native-access=ALL-UNNAMED']
+}
+
+dependencies {
+    implementation "io.javalin:javalin:7.2.2"
+    implementation "com.fasterxml.jackson.core:jackson-databind:2.21.1"
+    implementation "com.webauthn4j:webauthn4j-core:0.31.0.RELEASE"
+    implementation "com.j2html:j2html:1.6.0"
+    implementation "org.xerial:sqlite-jdbc:3.51.2.0"
+    implementation "org.slf4j:slf4j-simple:2.0.17"
+}
+
+shadowJar {
+    archiveBaseName.set('plp-fido2')
+    archiveVersion.set('1.0.0')
+    archiveClassifier.set('')
+    mergeServiceFiles()
+}
+
+tasks.withType(JavaCompile) {
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
