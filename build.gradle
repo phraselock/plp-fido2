@@ -5,7 +5,7 @@ plugins {
 }
 
 group = 'com.phraselock'
-version = '1.0.0'
+version = '1.1.0'
 
 repositories {
     mavenCentral()
@@ -27,7 +27,7 @@ dependencies {
 
 shadowJar {
     archiveBaseName.set('plp-fido2')
-    archiveVersion.set('1.0.0')
+    archiveVersion.set('1.1.0')
     archiveClassifier.set('')
     mergeServiceFiles()
 }
