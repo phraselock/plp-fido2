@@ -283,9 +283,9 @@ Service config:
 ${HTML_STATUS}
 
 Demo pages (after nginx is configured):
-  https://your.domain${HTML_LOCATION}/register.html
-  https://your.domain${HTML_LOCATION}/login.html
-  https://your.domain${HTML_LOCATION}/dashboard.html
+  https://your.domain/fido-test/register.html
+  https://your.domain/fido-test/login.html
+  https://your.domain/fido-test/dashboard.html
 
 ============================================================
 nginx — add both blocks to your server{} section:
