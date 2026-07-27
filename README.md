@@ -124,10 +124,18 @@ Fully worked demo pages (with login redirect and session check) are in the [`htm
 ### One-line install (Debian / Ubuntu / Raspberry Pi OS)
 
 ```bash
-curl -sSL https://raw.githubusercontent.com/phraselock/plp-fido2/main/install.sh | sudo bash
+curl -sSL https://raw.githubusercontent.com/phraselock/plp-fido2/main/install.sh -o install.sh
+sudo bash install.sh
 ```
 
-The installer downloads the latest release from GitHub, installs Java 21 if needed, walks you through the configuration with a dialog UI, and registers a `plp-fido2` systemd service. Re-running the same command upgrades to the latest version while preserving your existing configuration and admin token.
+The installer downloads the latest release from GitHub, installs Java 21 if needed, walks you through the configuration with a dialog UI, installs the HTML demo pages (register / login / dashboard) with the correct API path, and registers a `plp-fido2` systemd service. A summary with all settings and the required nginx config blocks is saved to `/opt/phraselock/fido2-setup.txt`. Re-running the installer upgrades to the latest version while preserving your existing configuration and admin token.
+
+To uninstall:
+
+```bash
+curl -sSL https://raw.githubusercontent.com/phraselock/plp-fido2/main/uninstall.sh -o uninstall.sh
+sudo bash uninstall.sh
+```
 
 ---
 

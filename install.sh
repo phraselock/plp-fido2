@@ -3,14 +3,19 @@
 # Downloads the latest release from GitHub and installs it as a systemd service.
 #
 # Usage:
-#   curl -sSL https://raw.githubusercontent.com/phraselock/plp-fido2/main/install.sh | sudo bash
+#   curl -sSL https://raw.githubusercontent.com/phraselock/plp-fido2/main/install.sh -o install.sh
+#   sudo bash install.sh
 #
 set -euo pipefail
 
 GITHUB_REPO="phraselock/plp-fido2"
-SERVICE_NAME="plp-fido2"
+RAW_BASE="https://raw.githubusercontent.com/${GITHUB_REPO}/main"
 INSTALL_DIR="/opt/phraselock/fido2"
 SERVICE_USER="phraselock"
+SUMMARY_FILE="/opt/phraselock/fido2-setup.txt"
+
+HTML_FILES=(register.html login.html dashboard.html)
+HTML_IMGS=(img/logo.png img/passkey.png)
 
 # ---------------------------------------------------------------------------
 # Root check
@@ -21,7 +26,7 @@ if [[ "$(id -u)" -ne 0 ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# Dialog tool (whiptail on Debian/Ubuntu, dialog on macOS for local testing)
+# Dialog tool
 # ---------------------------------------------------------------------------
 DIALOG=$(command -v whiptail 2>/dev/null || command -v dialog 2>/dev/null || true)
 if [[ -z "$DIALOG" ]]; then
@@ -32,7 +37,7 @@ if [[ -z "$DIALOG" ]]; then
 fi
 
 # ---------------------------------------------------------------------------
-# curl (needed for GitHub API and download)
+# curl
 # ---------------------------------------------------------------------------
 if ! command -v curl >/dev/null 2>&1; then
   DEBIAN_FRONTEND=noninteractive apt-get update -qq
@@ -40,7 +45,7 @@ if ! command -v curl >/dev/null 2>&1; then
 fi
 
 # ---------------------------------------------------------------------------
-# Fetch latest release info from GitHub
+# Fetch latest release from GitHub
 # ---------------------------------------------------------------------------
 echo "Fetching latest release from GitHub (${GITHUB_REPO})..."
 RELEASE_JSON=$(curl -fsSL "https://api.github.com/repos/${GITHUB_REPO}/releases/latest")
@@ -60,52 +65,54 @@ fi
 JAR_NAME=$(basename "$JAR_URL")
 
 # ---------------------------------------------------------------------------
-# Read existing config values (upgrade-friendly — already-set values become
-# the defaults so a repeat run doesn't wipe configuration)
+# Read existing config values (upgrade-friendly)
 # ---------------------------------------------------------------------------
+_get() { grep "^${1}=" "$INSTALL_DIR/application.properties" 2>/dev/null | cut -d= -f2- || true; }
+
 EXISTING_PORT="8081"
 EXISTING_PREFIX="/webauthn"
 EXISTING_IPS="127.0.0.1,::1,[0:0:0:0:0:0:0:1]"
-EXISTING_MIN_THREADS="2"
 EXISTING_MAX_THREADS="10"
 EXISTING_TOKEN=""
+EXISTING_HTML_DIR="/var/www/html/fido-test"
 
 if [[ -f "$INSTALL_DIR/application.properties" ]]; then
-  _get() { grep "^${1}=" "$INSTALL_DIR/application.properties" 2>/dev/null | cut -d= -f2- || true; }
-  EXISTING_PORT=$(_get server.port || echo "$EXISTING_PORT")
-  EXISTING_PREFIX=$(_get app.path.prefix || echo "$EXISTING_PREFIX")
-  EXISTING_IPS=$(_get allowed.ips || echo "$EXISTING_IPS")
-  EXISTING_MIN_THREADS=$(_get jetty.minThreads || echo "$EXISTING_MIN_THREADS")
+  EXISTING_PORT=$(   _get server.port      || echo "$EXISTING_PORT")
+  EXISTING_PREFIX=$( _get app.path.prefix  || echo "$EXISTING_PREFIX")
+  EXISTING_IPS=$(    _get allowed.ips      || echo "$EXISTING_IPS")
   EXISTING_MAX_THREADS=$(_get jetty.maxThreads || echo "$EXISTING_MAX_THREADS")
-  EXISTING_TOKEN=$(_get admin.token || echo "")
+  EXISTING_TOKEN=$(  _get admin.token      || echo "")
 fi
+
+# Preserve previously configured HTML dir
+if [[ -f "$INSTALL_DIR/.html_dir" ]]; then
+  EXISTING_HTML_DIR=$(cat "$INSTALL_DIR/.html_dir")
+fi
+
+TITLE="plp-fido2 ${VERSION} Setup"
 
 # ---------------------------------------------------------------------------
 # Interactive configuration
 # ---------------------------------------------------------------------------
-if ! PORT=$("$DIALOG" --title "plp-fido2 ${VERSION} Setup" \
+if ! PORT=$("$DIALOG" --title "$TITLE" \
     --inputbox "HTTP port for plp-fido2:" 10 55 "$EXISTING_PORT" \
-    3>&1 1>&2 2>&3); then
-  echo "Aborted." >&2; exit 1
-fi
+    3>&1 1>&2 2>&3); then echo "Aborted." >&2; exit 1; fi
 
-if ! PREFIX=$("$DIALOG" --title "plp-fido2 ${VERSION} Setup" \
+if ! PREFIX=$("$DIALOG" --title "$TITLE" \
     --inputbox "nginx location prefix (e.g. /webauthn):" 10 55 "$EXISTING_PREFIX" \
-    3>&1 1>&2 2>&3); then
-  echo "Aborted." >&2; exit 1
-fi
+    3>&1 1>&2 2>&3); then echo "Aborted." >&2; exit 1; fi
 
-if ! ALLOWED_IPS=$("$DIALOG" --title "plp-fido2 ${VERSION} Setup" \
+if ! ALLOWED_IPS=$("$DIALOG" --title "$TITLE" \
     --inputbox "Allowed IPs (comma-separated):" 10 70 "$EXISTING_IPS" \
-    3>&1 1>&2 2>&3); then
-  echo "Aborted." >&2; exit 1
-fi
+    3>&1 1>&2 2>&3); then echo "Aborted." >&2; exit 1; fi
 
-if ! MAX_THREADS=$("$DIALOG" --title "plp-fido2 ${VERSION} Setup" \
+if ! MAX_THREADS=$("$DIALOG" --title "$TITLE" \
     --inputbox "Jetty max threads (concurrent requests):" 10 55 "$EXISTING_MAX_THREADS" \
-    3>&1 1>&2 2>&3); then
-  echo "Aborted." >&2; exit 1
-fi
+    3>&1 1>&2 2>&3); then echo "Aborted." >&2; exit 1; fi
+
+if ! HTML_DIR=$("$DIALOG" --title "$TITLE" \
+    --inputbox "Web root directory for HTML demo pages:" 10 65 "$EXISTING_HTML_DIR" \
+    3>&1 1>&2 2>&3); then echo "Aborted." >&2; exit 1; fi
 
 # ---------------------------------------------------------------------------
 # Admin token — generate once, never overwrite
@@ -149,8 +156,6 @@ id -u "$SERVICE_USER" >/dev/null 2>&1 \
 mkdir -p "$INSTALL_DIR"
 echo "Downloading ${JAR_NAME} (${VERSION})..."
 curl -fsSL "$JAR_URL" -o "$INSTALL_DIR/$JAR_NAME"
-
-# Generic symlink so the systemd unit never needs to change across versions
 ln -sf "$JAR_NAME" "$INSTALL_DIR/plp-fido2.jar"
 
 # ---------------------------------------------------------------------------
@@ -177,8 +182,29 @@ admin.token=${ADMIN_TOKEN}
 app.path.prefix=${PREFIX}
 EOF
 
+# Remember HTML dir for future upgrades
+echo "$HTML_DIR" > "$INSTALL_DIR/.html_dir"
+
 chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"
 chmod 600 "$INSTALL_DIR/application.properties"
+
+# ---------------------------------------------------------------------------
+# Download HTML demo pages and patch API_BASE to match configured prefix
+# ---------------------------------------------------------------------------
+mkdir -p "$HTML_DIR/img"
+echo "Downloading HTML demo pages to ${HTML_DIR}..."
+
+for f in "${HTML_FILES[@]}"; do
+  curl -fsSL "${RAW_BASE}/html/${f}" -o "$HTML_DIR/${f}"
+  # Replace the hardcoded API_BASE with the configured prefix
+  sed -i "s|const API_BASE = '[^']*'|const API_BASE = '${PREFIX}'|g" "$HTML_DIR/${f}"
+done
+
+for img in "${HTML_IMGS[@]}"; do
+  curl -fsSL "${RAW_BASE}/html/${img}" -o "$HTML_DIR/${img}"
+done
+
+HTML_STATUS="HTML pages installed to ${HTML_DIR} (API_BASE set to '${PREFIX}')."
 
 # ---------------------------------------------------------------------------
 # systemd service
@@ -203,7 +229,6 @@ systemctl daemon-reload
 systemctl enable plp-fido2 >/dev/null 2>&1 || true
 systemctl restart plp-fido2
 
-# Brief pause so the JVM has time to bind the port before we report success
 sleep 2
 if systemctl is-active --quiet plp-fido2; then
   SERVICE_STATUS="plp-fido2 is running."
@@ -212,9 +237,9 @@ else
 fi
 
 # ---------------------------------------------------------------------------
-# nginx config hint (shown in summary, not applied automatically)
+# nginx blocks
 # ---------------------------------------------------------------------------
-NGINX_HINT="location ${PREFIX}/ {
+NGINX_SERVICE="location ${PREFIX}/ {
     proxy_pass          http://localhost:${PORT}/;
     proxy_set_header    Host              \$host;
     proxy_set_header    X-Real-IP         \$remote_addr;
@@ -222,32 +247,95 @@ NGINX_HINT="location ${PREFIX}/ {
     proxy_set_header    X-Forwarded-Proto \$scheme;
 }"
 
+# Derive the path under which the HTML files will be served.
+# Assumption: HTML_DIR is somewhere under /var/www/html — we strip that prefix.
+HTML_LOCATION=$(echo "$HTML_DIR" | sed 's|/var/www/html||')
+[[ -z "$HTML_LOCATION" ]] && HTML_LOCATION="/"
+
+NGINX_HTML="location ${HTML_LOCATION}/ {
+    root /var/www/html;
+    index register.html;
+    try_files \$uri \$uri/ =404;
+}"
+
 # ---------------------------------------------------------------------------
-# Summary
+# Summary text file
+# ---------------------------------------------------------------------------
+mkdir -p "$(dirname "$SUMMARY_FILE")"
+
+TOKEN_DISPLAY="(preserved — see ${INSTALL_DIR}/application.properties)"
+if [[ "$TOKEN_IS_NEW" == true ]]; then
+  TOKEN_DISPLAY="${ADMIN_TOKEN}"
+fi
+
+cat > "$SUMMARY_FILE" << EOF
+plp-fido2 ${VERSION} — Installation Summary
+$(date)
+============================================================
+
+${JAVA_STATUS}
+${SERVICE_STATUS}
+${TOKEN_STATUS}
+
+Admin token:
+  ${TOKEN_DISPLAY}
+
+Admin UI:
+  https://your.domain${PREFIX}/admin/users?token=${ADMIN_TOKEN}
+
+Service config:
+  ${INSTALL_DIR}/application.properties
+
+${HTML_STATUS}
+
+Demo pages (after nginx is configured):
+  https://your.domain${HTML_LOCATION}/register.html
+  https://your.domain${HTML_LOCATION}/login.html
+  https://your.domain${HTML_LOCATION}/dashboard.html
+
+============================================================
+nginx — add both blocks to your server{} section:
+
+# plp-fido2 backend
+${NGINX_SERVICE}
+
+# FIDO2 demo pages
+${NGINX_HTML}
+============================================================
+
+To update: sudo bash install.sh
+To remove:  sudo bash uninstall.sh
+EOF
+
+chmod 600 "$SUMMARY_FILE"
+
+# ---------------------------------------------------------------------------
+# Summary dialog
 # ---------------------------------------------------------------------------
 TOKEN_LINE=""
 if [[ "$TOKEN_IS_NEW" == true ]]; then
   TOKEN_LINE="
 Admin token (save this!):
-  ${ADMIN_TOKEN}"
+  ${ADMIN_TOKEN}
+"
 fi
 
 "$DIALOG" --title "plp-fido2 ${VERSION} Setup — Done" --msgbox \
 "${JAVA_STATUS}
-
-plp-fido2 ${VERSION} installed to:
-  ${INSTALL_DIR}
-
 ${SERVICE_STATUS}
-${TOKEN_STATUS}${TOKEN_LINE}
+${TOKEN_STATUS}
+${TOKEN_LINE}
+Demo pages: ${HTML_DIR}
+  (API_BASE set to '${PREFIX}')
 
-Admin UI (after nginx is configured):
-  https://your.domain${PREFIX}/admin/users?token=<token>
+nginx blocks — add to your server{} section:
 
-Config file (token + settings):
-  ${INSTALL_DIR}/application.properties
+${NGINX_SERVICE}
 
-nginx block to add to your server{} section:
-${NGINX_HINT}
+${NGINX_HTML}
 
-To update later, just re-run this installer." 34 78
+Full summary saved to:
+  ${SUMMARY_FILE}
+
+To update: sudo bash install.sh
+To remove:  sudo bash uninstall.sh" 40 78
