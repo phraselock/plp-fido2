@@ -89,6 +89,37 @@ This is all the HTML you need to add a **Register** button to any page:
 
 That's it. The browser handles biometrics, cryptography, and device binding — your code just calls two endpoints.
 
+Adding a **Login** button is even simpler — no token, no user object, the browser picks the right key automatically:
+
+```html
+<button onclick="doLogin()">Sign in with passkey</button>
+
+<script>
+  const API_BASE = '/webauthn';   // your nginx location
+
+  async function doLogin() {
+    // 1. Get challenge from server
+    const options = await fetch(API_BASE + '/login/options', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({})
+    }).then(r => r.json());
+
+    // 2. Browser picks the right passkey automatically (discoverable credential)
+    options.challenge = base64urlToBytes(options.challenge);
+    const assertion = await navigator.credentials.get({ publicKey: options });
+
+    // 3. Verify — server sets an HttpOnly session cookie on success
+    const res = await fetch(API_BASE + '/login/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(assertion)
+    });
+    if ((await res.json()).success) window.location.href = 'dashboard.html';
+  }
+</script>
+```
+
 Fully worked demo pages (with login redirect and session check) are in the [`html/`](html/) folder.
 
 ---
