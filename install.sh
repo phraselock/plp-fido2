@@ -247,14 +247,8 @@ NGINX_SERVICE="location ${PREFIX}/ {
     proxy_set_header    X-Forwarded-Proto \$scheme;
 }"
 
-# Derive the path under which the HTML files will be served.
-# Assumption: HTML_DIR is somewhere under /var/www/html — we strip that prefix.
-HTML_LOCATION=$(echo "$HTML_DIR" | sed 's|/var/www/html||')
-[[ -z "$HTML_LOCATION" ]] && HTML_LOCATION="/"
-
-NGINX_HTML="location ${HTML_LOCATION}/ {
-    root /var/www/html;
-    index register.html;
+NGINX_HTML="location /fido-test/ {
+    # serves /var/www/html/fido-test/ (root must be set above)
     try_files \$uri \$uri/ =404;
 }"
 
