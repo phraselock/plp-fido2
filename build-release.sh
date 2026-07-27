@@ -44,6 +44,13 @@ if [[ ! -d "html" ]]; then
   exit 1
 fi
 
+# Strip macOS extended attributes (quarantine, Spotlight, Finder tags) so
+# they don't end up as PAX headers in the archive (COPYFILE_DISABLE alone
+# is not enough — libarchive still stores xattrs per-entry).
+if command -v xattr >/dev/null 2>&1; then
+  xattr -cr html/ 2>/dev/null || true
+fi
+
 HTML_TARBALL="plp-fido2-html-${VERSION}.tar.gz"
 COPYFILE_DISABLE=1 tar -czf "$HTML_TARBALL" \
   --exclude='.DS_Store' \
