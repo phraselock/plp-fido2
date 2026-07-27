@@ -9,13 +9,9 @@
 set -euo pipefail
 
 GITHUB_REPO="phraselock/plp-fido2"
-RAW_BASE="https://raw.githubusercontent.com/${GITHUB_REPO}/main"
 INSTALL_DIR="/opt/phraselock/fido2"
 SERVICE_USER="phraselock"
 SUMMARY_FILE="/opt/phraselock/fido2-setup.txt"
-
-HTML_FILES=(register.html login.html dashboard.html)
-HTML_IMGS=(img/logo.png img/passkey.png)
 
 # ---------------------------------------------------------------------------
 # Root check
@@ -55,6 +51,10 @@ VERSION=$(echo "$RELEASE_JSON" \
 JAR_URL=$(echo "$RELEASE_JSON" \
   | grep '"browser_download_url"' \
   | grep '\.jar"' \
+  | sed -E 's/.*"browser_download_url"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')
+HTML_URL=$(echo "$RELEASE_JSON" \
+  | grep '"browser_download_url"' \
+  | grep 'html.*\.tar\.gz"' \
   | sed -E 's/.*"browser_download_url"[[:space:]]*:[[:space:]]*"([^"]+)".*/\1/')
 
 if [[ -z "$VERSION" || -z "$JAR_URL" ]]; then
@@ -189,22 +189,22 @@ chown -R "$SERVICE_USER:$SERVICE_USER" "$INSTALL_DIR"
 chmod 600 "$INSTALL_DIR/application.properties"
 
 # ---------------------------------------------------------------------------
-# Download HTML demo pages and patch API_BASE to match configured prefix
+# Download HTML demo pages from release and patch API_BASE
 # ---------------------------------------------------------------------------
-mkdir -p "$HTML_DIR/img"
-echo "Downloading HTML demo pages to ${HTML_DIR}..."
-
-for f in "${HTML_FILES[@]}"; do
-  curl -fsSL "${RAW_BASE}/html/${f}" -o "$HTML_DIR/${f}"
-  # Replace the hardcoded API_BASE with the configured prefix
-  sed -i "s|const API_BASE = '[^']*'|const API_BASE = '${PREFIX}'|g" "$HTML_DIR/${f}"
-done
-
-for img in "${HTML_IMGS[@]}"; do
-  curl -fsSL "${RAW_BASE}/html/${img}" -o "$HTML_DIR/${img}"
-done
-
-HTML_STATUS="HTML pages installed to ${HTML_DIR} (API_BASE set to '${PREFIX}')."
+mkdir -p "$HTML_DIR"
+if [[ -n "$HTML_URL" ]]; then
+  echo "Downloading HTML demo pages (${VERSION})..."
+  TMPTAR=$(mktemp /tmp/plp-fido2-html.XXXXXX.tar.gz)
+  curl -fsSL "$HTML_URL" -o "$TMPTAR"
+  tar -xzf "$TMPTAR" -C "$HTML_DIR"
+  rm -f "$TMPTAR"
+  # Patch API_BASE in all HTML files to match the configured prefix
+  find "$HTML_DIR" -name "*.html" -exec \
+    sed -i "s|const API_BASE = '[^']*'|const API_BASE = '${PREFIX}'|g" {} \;
+  HTML_STATUS="HTML pages installed to ${HTML_DIR} (API_BASE set to '${PREFIX}')."
+else
+  HTML_STATUS="WARNING: no HTML archive found in release ${VERSION} — pages not installed."
+fi
 
 # ---------------------------------------------------------------------------
 # systemd service
