@@ -47,6 +47,9 @@ windows-build/input/certs/
 
 ### Mac OS ###
 .DS_Store
+
+### Release artifacts ###
+*.tar.gz
 plp-server-*.jar
 deploy
 .git-old-pre-cleanup/
