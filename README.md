@@ -121,6 +121,18 @@ Fully worked demo pages (with login redirect and session check) are in the [`htm
 
 ## Setup
 
+### One-line install (Debian / Ubuntu / Raspberry Pi OS)
+
+```bash
+curl -sSL https://raw.githubusercontent.com/phraselock/plp-fido2/main/install.sh | sudo bash
+```
+
+The installer downloads the latest release from GitHub, installs Java 21 if needed, walks you through the configuration with a dialog UI, and registers a `plp-fido2` systemd service. Re-running the same command upgrades to the latest version while preserving your existing configuration and admin token.
+
+---
+
+### Manual setup
+
 ### 1. Build
 
 ```bash
