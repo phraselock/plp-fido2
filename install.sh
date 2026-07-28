@@ -231,15 +231,21 @@ fi
 # ---------------------------------------------------------------------------
 cat > "${INSTALL_DIR}/plp-fido2.service" << EOF
 [Unit]
-Description=Phrase-Lock FIDO2 / WebAuthn Service
+Description=Phrase-Lock PLP Service
 After=network.target
 
 [Service]
-User=${SERVICE_USER}
+Type=simple
 WorkingDirectory=${INSTALL_DIR}
-ExecStart=/usr/bin/java -jar ${INSTALL_DIR}/plp-fido2.jar
+ExecStart=/usr/bin/java -jar plp-fido2.jar
 Restart=on-failure
-RestartSec=5
+TimeoutStopSec=1
+KillSignal=SIGKILL
+
+User=${SERVICE_USER}
+
+StandardOutput=append:/var/log/plp-fido2.log
+StandardError=append:/var/log/plp-fido2.log
 
 [Install]
 WantedBy=multi-user.target
