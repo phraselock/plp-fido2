@@ -209,7 +209,7 @@ fi
 # ---------------------------------------------------------------------------
 # systemd service
 # ---------------------------------------------------------------------------
-cat > /etc/systemd/system/plp-fido2.service << EOF
+cat > "${INSTALL_DIR}/plp-fido2.service" << EOF
 [Unit]
 Description=Phrase-Lock FIDO2 / WebAuthn Service
 After=network.target
@@ -224,6 +224,7 @@ RestartSec=5
 [Install]
 WantedBy=multi-user.target
 EOF
+ln -sf "${INSTALL_DIR}/plp-fido2.service" /etc/systemd/system/plp-fido2.service
 
 systemctl daemon-reload
 systemctl enable plp-fido2 >/dev/null 2>&1 || true
