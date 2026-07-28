@@ -11,7 +11,7 @@ set -euo pipefail
 GITHUB_REPO="phraselock/plp-fido2"
 INSTALL_DIR="/opt/phraselock/fido2"
 SERVICE_USER="phraselock"
-SUMMARY_FILE="/opt/phraselock/fido2-setup.txt"
+SUMMARY_FILE="/opt/phraselock/fido2/fido2-setup.txt"
 
 # ---------------------------------------------------------------------------
 # Root check
