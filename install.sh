@@ -207,6 +207,26 @@ else
 fi
 
 # ---------------------------------------------------------------------------
+# nginx include block
+# ---------------------------------------------------------------------------
+if [[ -d /etc/nginx/phraselock.d ]]; then
+  cat > /etc/nginx/phraselock.d/plp-fido2.conf << EOF
+location ${PREFIX}/ {
+    proxy_pass          http://localhost:${PORT}/;
+    proxy_set_header    Host              \$host;
+    proxy_set_header    X-Real-IP         \$remote_addr;
+    proxy_set_header    X-Forwarded-For   \$proxy_add_x_forwarded_for;
+    proxy_set_header    X-Forwarded-Proto \$scheme;
+}
+location /fido-test/ {
+    # serves /var/www/html/fido-test/
+    try_files \$uri \$uri/ =404;
+}
+EOF
+  nginx -t 2>/dev/null && systemctl reload nginx 2>/dev/null || true
+fi
+
+# ---------------------------------------------------------------------------
 # systemd service
 # ---------------------------------------------------------------------------
 cat > "${INSTALL_DIR}/plp-fido2.service" << EOF
@@ -289,13 +309,9 @@ Demo pages (after nginx is configured):
   https://your.domain/fido-test/dashboard.html
 
 ============================================================
-nginx — add both blocks to your server{} section:
-
-# plp-fido2 backend
-${NGINX_SERVICE}
-
-# FIDO2 demo pages
-${NGINX_HTML}
+nginx: ${PREFIX}/ and /fido-test/ blocks written to
+       /etc/nginx/phraselock.d/plp-fido2.conf
+(only if PhraseLock-Bridge PLPServer is installed)
 ============================================================
 
 To update: sudo bash install.sh
