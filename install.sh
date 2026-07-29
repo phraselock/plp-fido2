@@ -201,6 +201,7 @@ if [[ -n "$HTML_URL" ]]; then
   # Patch API_BASE in all HTML files to match the configured prefix
   find "$HTML_DIR" -name "*.html" -exec \
     sed -i "s|const API_BASE = '[^']*'|const API_BASE = '${PREFIX}'|g" {} \;
+  chmod -R o+rX "$HTML_DIR"
   HTML_STATUS="HTML pages installed to ${HTML_DIR} (API_BASE set to '${PREFIX}')."
 else
   HTML_STATUS="WARNING: no HTML archive found in release ${VERSION} — pages not installed."
