@@ -20,6 +20,7 @@ import com.webauthn4j.server.ServerProperty;
 import io.javalin.http.Cookie;
 import io.javalin.http.Context;
 import io.javalin.http.SameSite;
+import plp.backend.PLPApplication;
 import plp.lib.CredentialDao;
 import plp.lib.PendingUserDao;
 import plp.lib.PLTool;
@@ -261,6 +262,14 @@ public class WebAuthn
 
     // 3. WebAuthnManager
     WebAuthnManager manager = WebAuthnManager.createNonStrictWebAuthnManager();
+
+    // Sign counter: by default webauthn4j rejects a counter that did not
+    // increase (possible cloned authenticator). With
+    // webauthn.signcount.check=false that check is skipped.
+    if (!PLPApplication.signCountCheck())
+    {
+      manager.getAuthenticationDataVerifier().setMaliciousCounterValueHandler(authObj -> {});
+    }
 
     // 4. Parse JSON → AuthenticationData
     AuthenticationData authData;

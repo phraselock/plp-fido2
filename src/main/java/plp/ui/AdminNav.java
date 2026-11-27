@@ -7,17 +7,27 @@ import static j2html.TagCreator.*;
 
 public class AdminNav
 {
-  public static DomContent bar()
+  private static final String P = PLPApplication.PATH_PREFIX;
+
+  // Main frame around nav + page content (same look as plp-admin).
+  public static final String FRAME =
+    "max-width:1024px;margin:28px auto 0 auto;padding:30px;" +
+    "background:white;border:0.5px solid #c0c0c0;" +
+    "border-radius:12px;box-shadow:0 2px 6px rgba(0,0,0,0.1);";
+
+  // active: "users" | "credentials" | "appconfig"
+  public static DomContent bar(String active)
   {
+    boolean onUsersPage = active.equals("users") || active.equals("credentials");
+
     return div().with(
       div()
         .withStyle("display:flex;gap:8px;flex-wrap:wrap;margin-bottom:28px;align-items:center;")
         .with(
-          span("FIDO2 Admin")
-            .withStyle(
-              "padding:4px 14px;border-radius:20px;font-size:12px;" +
-              "border:1px solid #444;background:#333;color:#fff;"),
-          img().withSrc(PLPApplication.PATH_PREFIX + "/img/logo.png")
+          tile(P + "/admin/appconfig", "Application", active.equals("appconfig")),
+          tabTile("users",       "Users",       active, onUsersPage),
+          tabTile("credentials", "Credentials", active, onUsersPage),
+          img().withSrc(P + "/img/logo.png")
             .withAlt("Logo")
             .withStyle(
               "max-height:48px;max-width:160px;object-fit:contain;" +
@@ -26,7 +36,7 @@ public class AdminNav
 
       script(rawHtml(
         "document.addEventListener('DOMContentLoaded',function(){" +
-        "  var prefix='" + PLPApplication.PATH_PREFIX + "';" +
+        "  var prefix='" + P + "';" +
         "  var t=(new URLSearchParams(window.location.search)).get('token');" +
         "  if(!t)return;" +
         "  document.querySelectorAll('a[href]').forEach(function(a){" +
@@ -59,4 +69,30 @@ public class AdminNav
         "text-align:center;font-size:11px;color:#aaa;")
       .withText("© " + year + " iPoxo IT GmbH — All rights reserved");
   }
+
+  // Users / Credentials are tabs of the same page: on that page they switch
+  // client-side, from other pages they link to it with the tab as hash.
+  private static DomContent tabTile(String tab, String label, String active, boolean onUsersPage)
+  {
+    var a = a(label)
+      .withHref(P + "/admin/users#" + tab)
+      .withClass("nav-tile" + (tab.equals(active) ? " active" : ""))
+      .attr("data-tab", tab);
+    if (onUsersPage)
+    {
+      a.attr("onclick", "switchTab('" + tab + "');return false;");
+    }
+    return a;
+  }
+
+  private static DomContent tile(String href, String label, boolean active)
+  {
+    return a(label).withHref(href).withClass("nav-tile" + (active ? " active" : ""));
+  }
+
+  // Nav pill style (same look as plp-admin). Include in the page <style>.
+  public static final String CSS =
+    ".nav-tile { padding:4px 14px; border-radius:20px; font-size:12px; text-decoration:none;" +
+    "  border:1px solid #bbb; background:#f0f0f0; color:#555; }" +
+    ".nav-tile.active { border-color:#444; background:#333; color:#fff; }";
 }

@@ -29,38 +29,23 @@ public class AdminPage
       head(
         meta().withCharset("UTF-8"),
         title("FIDO2 Admin"),
-        style(CSS)
+        style(CSS + AdminNav.CSS)
       ),
       body(
-        div().withStyle("max-width:1024px;margin:0 auto;").with(
-          AdminNav.bar(),
-          tabBar(),
+        div().withStyle(AdminNav.FRAME).with(
+          AdminNav.bar("users"),
           div().withId("tab-users").withClass("tab-content").with(
             addUserCard(),
             pendingUsersCard(pending)
           ),
           div().withId("tab-credentials").withClass("tab-content").withStyle("display:none").with(
             credentialsCard(credentials)
-          ),
-          AdminNav.footer()
+          )
         ),
+        AdminNav.footer(),
         script(rawHtml(JS))
       )
     ));
-  }
-
-  private static DomContent tabBar()
-  {
-    return div().withClass("tab-bar").with(
-      button("Users")
-        .withClass("tab-btn active")
-        .attr("data-tab", "users")
-        .attr("onclick", "switchTab('users')"),
-      button("Credentials")
-        .withClass("tab-btn")
-        .attr("data-tab", "credentials")
-        .attr("onclick", "switchTab('credentials')")
-    );
   }
 
   private static DomContent addUserCard()
@@ -187,9 +172,9 @@ public class AdminPage
     "*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }" +
     "body { font-family: Arial, Helvetica, sans-serif; background: #f5f5f5; padding: 32px; }" +
     "h2 { font-size: 1rem; color: #1a1a2e; margin-bottom: 16px; }" +
-    ".card { background: #fff; border-radius: 12px; border: 0.5px solid #ddd;" +
-    "        box-shadow: 0 2px 6px rgba(0,0,0,0.06); padding: 28px; margin-bottom: 28px;" +
-    "        max-width: 1024px; margin-left: auto; margin-right: auto; }" +
+    ".card { background: #fff; border-radius: 12px; border: 1px solid #eee;" +
+    "        padding: 24px; margin-bottom: 24px; }" +
+    ".tab-content .card:last-child { margin-bottom: 0; }" +
     "table { width: 100%; border-collapse: collapse; }" +
     "input[type=email] {" +
     "  padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px;" +
@@ -201,11 +186,6 @@ public class AdminPage
     ".token { font-family: monospace; font-size: 0.95rem; font-weight: 600;" +
     "         letter-spacing: 2px; color: #1a1a2e; }" +
     ".empty { color: #aaa; font-size: 0.85rem; padding: 16px 14px; }" +
-    ".tab-bar { display:flex; gap:8px; margin-bottom:24px; }" +
-    ".tab-btn { padding:8px 24px; border-radius:20px; font-size:0.88rem; font-weight:600;" +
-    "  cursor:pointer; border:1px solid #4a6cf7; background:transparent; color:#4a6cf7; }" +
-    ".tab-btn.active { background:#4a6cf7; color:#fff; }" +
-    ".tab-btn:hover:not(.active) { background:#eef2ff; }" +
     ".search-input { display:block; width:100%; padding:8px 12px; border:1px solid #ddd;" +
     "  border-radius:8px; font-size:0.88rem; margin-bottom:16px; background:#fafafa; outline:none; }" +
     ".search-input:focus { border-color:#4a6cf7; background:#fff; }" +
@@ -218,7 +198,7 @@ public class AdminPage
     "  document.querySelectorAll('.tab-content').forEach(function(el){" +
     "    el.style.display=el.id==='tab-'+name?'':'none';" +
     "  });" +
-    "  document.querySelectorAll('.tab-btn').forEach(function(b){" +
+    "  document.querySelectorAll('.nav-tile[data-tab]').forEach(function(b){" +
     "    b.classList.toggle('active',b.dataset.tab===name);" +
     "  });" +
     "  history.replaceState(null,'',location.pathname+location.search+'#'+name);" +

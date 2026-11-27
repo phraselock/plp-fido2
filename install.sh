@@ -82,7 +82,9 @@ if [[ -f "$INSTALL_DIR/application.properties" ]]; then
   EXISTING_IPS=$(    _get allowed.ips      || echo "$EXISTING_IPS")
   EXISTING_MAX_THREADS=$(_get jetty.maxThreads || echo "$EXISTING_MAX_THREADS")
   EXISTING_TOKEN=$(  _get admin.token      || echo "")
+  EXISTING_SIGNCOUNT=$(_get webauthn.signcount.check)
 fi
+[[ -z "${EXISTING_SIGNCOUNT:-}" ]] && EXISTING_SIGNCOUNT="true"
 
 # Preserve previously configured HTML dir
 if [[ -f "$INSTALL_DIR/.html_dir" ]]; then
@@ -180,6 +182,13 @@ admin.token=${ADMIN_TOKEN}
 # External path prefix (nginx location strip).
 # Must match the nginx location block (e.g. /webauthn).
 app.path.prefix=${PREFIX}
+
+# FIDO sign counter check.
+# true  = reject a login whose sign counter did not increase (possible cloned
+#         authenticator). Authenticators that always send 0 are not affected.
+# false = ignore the sign counter for identification.
+# Read on every login — no restart needed.
+webauthn.signcount.check=${EXISTING_SIGNCOUNT}
 EOF
 
 # Remember HTML dir for future upgrades

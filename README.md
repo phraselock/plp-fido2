@@ -147,6 +147,8 @@ Fully worked demo pages (with login redirect and session check) are in the [`htm
 | `POST` | `/admin/users/delete` | Remove a pending registration |
 | `POST` | `/admin/credential/rename` | Update a credential's display name |
 | `POST` | `/admin/credential/delete` | Revoke a registered credential |
+| `GET` | `/admin/appconfig` | View `application.properties` |
+| `POST` | `/admin/appconfig` | Save `application.properties` |
 
 ---
 
@@ -198,6 +200,10 @@ admin.token=your-secret-token-here
 
 # nginx location prefix (used for browser-level redirects in the admin UI)
 app.path.prefix=/webauthn
+
+# FIDO sign counter check — true: reject a login whose counter did not increase
+# (possible cloned authenticator); false: ignore the counter. No restart needed.
+webauthn.signcount.check=true
 ```
 
 ### 3. Run
@@ -238,7 +244,7 @@ Then open `https://your.domain/fdo/register.html` — everything is wired up and
 
 Open `https://your.domain/webauthn/admin/users?token=<your-admin-token>` after the service starts.
 
-The admin UI has two tabs:
+The admin UI has three menu items: **Application**, **Users** and **Credentials**.
 
 **Users tab**
 - Add a user by e-mail → a one-time 8-character registration token is generated
@@ -251,6 +257,10 @@ The admin UI has two tabs:
 - Edit the display name inline
 - Revoke any credential with one click
 - Full-text search across all credentials
+
+**Application**
+- View and edit `application.properties` in the browser; saving shows warnings for invalid values
+- `admin.token` and `webauthn.signcount.check` take effect immediately, all other settings after a service restart
 
 The token is never sent automatically — the admin chooses how to deliver it to the user. The user can only register once per token.
 

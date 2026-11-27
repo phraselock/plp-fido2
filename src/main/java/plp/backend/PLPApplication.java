@@ -4,6 +4,7 @@ import com.ipoxo.plcore.lib.Log;
 import io.javalin.Javalin;
 import org.eclipse.jetty.util.thread.QueuedThreadPool;
 import plp.handler.AdminHandler;
+import plp.handler.ConfigHandler;
 import plp.handler.WebAuthnHandler;
 import plp.lib.ConfigPathResolver;
 import plp.lib.DB;
@@ -70,6 +71,22 @@ public class PLPApplication
     return p.getProperty("admin.token", "").trim();
   }
 
+  // Sign counter check (FIDO "signCount"). Read on every call, so a change
+  // in application.properties takes effect without restart.
+  public static boolean signCountCheck()
+  {
+    Properties p = new Properties();
+    try (InputStream in = PLPApplication.class.getResourceAsStream("/" + PROPERTIES))
+    {
+      if (in != null) p.load(in);
+    }
+    catch (Exception ignored) {}
+    Path external = ConfigPathResolver.resolve(PROPERTIES, PLPApplication.class);
+    try (InputStream in = Files.newInputStream(external)) { p.load(in); }
+    catch (Exception ignored) {}
+    return !p.getProperty("webauthn.signcount.check", "true").trim().equalsIgnoreCase("false");
+  }
+
   private static Javalin web;
 
   public static void stop()
@@ -123,6 +140,7 @@ public class PLPApplication
 
       new WebAuthnHandler().registerRoutes(config);
       new AdminHandler().registerRoutes(config);
+      new ConfigHandler().registerRoutes(config);
     });
     web.start(PORT);
 
