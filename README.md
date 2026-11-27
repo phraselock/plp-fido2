@@ -142,11 +142,13 @@ Fully worked demo pages (with login redirect and session check) are in the [`htm
 
 | Method | Endpoint | Description |
 |---|---|---|
-| `GET` | `/admin/users` | Admin UI — manage pending users and registered credentials |
+| `GET` | `/admin/users` | Admin UI — list of users |
+| `GET` | `/admin/user?id=<id>` | Admin UI — one user with all registered keys |
 | `POST` | `/admin/users/create` | Pre-register a user, generates a one-time token |
-| `POST` | `/admin/users/delete` | Remove a pending registration |
-| `POST` | `/admin/credential/rename` | Update a credential's display name |
-| `POST` | `/admin/credential/delete` | Revoke a registered credential |
+| `POST` | `/admin/users/newcode` | New one-time token for an existing user (to register another key) |
+| `POST` | `/admin/users/delete` | Delete a user with all registered keys and sessions |
+| `POST` | `/admin/credential/rename` | Update a key's display name |
+| `POST` | `/admin/credential/delete` | Revoke a single registered key |
 | `GET` | `/admin/appconfig` | View `application.properties` |
 | `POST` | `/admin/appconfig` | Save `application.properties` |
 
@@ -244,25 +246,30 @@ Then open `https://your.domain/fdo/register.html` — everything is wired up and
 
 Open `https://your.domain/webauthn/admin/users?token=<your-admin-token>` after the service starts.
 
-The admin UI has three menu items: **Application**, **Users** and **Credentials**.
+The admin UI has two menu items: **Application** and **Users**.
 
-**Users tab**
+A user can have any number of keys (e.g. a PhraseLock key and a reserve hardware key). All keys of a user share the same WebAuthn user ID, so the application sees the same `userId` whichever key is used to sign in.
+
+**Users**
 - Add a user by e-mail → a one-time 8-character registration token is generated
 - Share the token with the user out-of-band (e-mail, message, etc.)
-- The token is shown as long as registration is pending and becomes "Registered" after the passkey is created
+- The token is shown as long as it is unused and becomes "Used" after a key has been registered with it
+- **New code** generates a fresh token for the same user to register another key; an unused previous token becomes invalid
+- **Delete** removes the user together with all registered keys and sessions
 - Full-text search across all users
 
-**Credentials tab**
-- Lists all registered passkeys with user, display name, and domain
-- Edit the display name inline
-- Revoke any credential with one click
-- Full-text search across all credentials
+**User detail** (click the e-mail or **Keys**)
+- Lists all registered keys of the user with display name, authenticator, domain and registration date
+- **Authenticator** is taken from the attestation certificate subject (`O · CN`, e.g. `Yubico AB · Yubico U2F EE Serial …`); registration requests `attestation: "direct"` for this. Shows "—" if the authenticator or browser sends no certificate
+- Edit a key's display name inline
+- Revoke a single key (e.g. a lost reserve key) without affecting the others
+- The same key cannot be registered twice for one user
 
 **Application**
 - View and edit `application.properties` in the browser; saving shows warnings for invalid values
 - `admin.token` and `webauthn.signcount.check` take effect immediately, all other settings after a service restart
 
-The token is never sent automatically — the admin chooses how to deliver it to the user. The user can only register once per token.
+The token is never sent automatically — the admin chooses how to deliver it to the user. Each token registers exactly one key.
 
 ---
 
@@ -302,9 +309,11 @@ All data lives in a single SQLite file. The schema is created automatically on f
 
 | Table | Purpose |
 |---|---|
-| `credentials` | Registered passkeys — credential ID, public key, sign counter, display name |
-| `pending_users` | Pre-registered users waiting to complete registration |
+| `credentials` | Registered keys (n per user) — credential ID, public key, sign counter, display name |
+| `pending_users` | Users created by the admin — e-mail, fixed WebAuthn user ID, current registration token |
 | `sessions` | Active login sessions — tied to the session cookie |
+
+Upgrading from a version before 1.4.0 (database version < 4) recreates all tables — existing users and keys are not migrated and must be registered again.
 
 ---
 

@@ -17,96 +17,36 @@ public final class CredentialDao {
   ){}
 
 
-  public static void setUser(String userid, String user, String displayname, String domain) {
+  // Stores one registered key (credential) for a user. Returns false on error
+  // (e.g. the same credential ID is already registered).
+  public static boolean insert(String userid, String displayname, String domain,
+                               String credentialId, String credentialRecord,
+                               String publicKey, long signCounter, String authenticator)
+  {
     String sql = """
             INSERT INTO credentials (
-              user_id,user, display_name,domain
+              user_id, display_name, domain, credential_id,
+              credential_Record, public_key, signature_counter, authenticator
             )
-            VALUES (?,?,?,?)
+            VALUES (?,?,?,?,?,?,?,?)
         """;
 
     try (Connection conn = DB.open();
          PreparedStatement ps = conn.prepareStatement(sql))
     {
       ps.setString(1, userid);
-      ps.setString(2, user);
-      ps.setString(3, displayname);
-      ps.setString(4, domain);
-
+      ps.setString(2, displayname);
+      ps.setString(3, domain);
+      ps.setString(4, credentialId);
+      ps.setString(5, credentialRecord);
+      ps.setString(6, publicKey);
+      ps.setLong(7, signCounter);
+      ps.setString(8, authenticator);
       ps.executeUpdate();
+      return true;
     } catch (SQLException e) {
-      Log.e ("Exception CredentialDao.setUser: " + e.getLocalizedMessage());
-    }
-  }
-
-  public static void setCredentialId(String userid, String credentialId) {
-    String sql = """
-            UPDATE credentials
-            SET credential_id = ?
-            WHERE user_id = ?
-        """;
-    try (Connection conn = DB.open();
-         PreparedStatement ps = conn.prepareStatement(sql)) {
-
-      ps.setString(1, credentialId);
-      ps.setString(2, userid);
-      ps.executeUpdate();
-
-    } catch (SQLException e) {
-      Log.e ("Exception CredentialDao.setCredentialId: " + e.getLocalizedMessage());
-    }
-  }
-
-  public static void setPublicKey(String userid, String publicKey) {
-    String sql = """
-            UPDATE credentials
-            SET public_key = ?
-            WHERE user_id = ?
-        """;
-    try (Connection conn = DB.open();
-         PreparedStatement ps = conn.prepareStatement(sql)) {
-
-      ps.setString(1, publicKey);
-      ps.setString(2, userid);
-      ps.executeUpdate();
-
-    } catch (SQLException e) {
-      Log.e ("Exception CredentialDao.setPublicKey: " + e.getLocalizedMessage());
-    }
-  }
-
-  public static void setCredentialRecord(String userid, String credentialRecord) {
-    String sql = """
-            UPDATE credentials
-            SET credential_Record = ?
-            WHERE user_id = ?
-        """;
-    try (Connection conn = DB.open();
-         PreparedStatement ps = conn.prepareStatement(sql)) {
-
-      ps.setString(1, credentialRecord);
-      ps.setString(2, userid);
-      ps.executeUpdate();
-
-    } catch (SQLException e) {
-      Log.e ("Exception CredentialDao.setCredentialRecord: " + e.getLocalizedMessage());
-    }
-  }
-  public static void setSignCounter(String userid, long signCounter) {
-    String sql = """
-            UPDATE credentials
-            SET signature_counter = ?
-            WHERE user_id = ?
-        """;
-    try (Connection conn = DB.open();
-         PreparedStatement ps = conn.prepareStatement(sql)) {
-
-      ps.setLong(1, signCounter);
-      ps.setString(2, userid);
-      ps.executeUpdate();
-
-    } catch (SQLException e) {
-      Log.e ("Exception CredentialDao.setSignCounter: " + e.getLocalizedMessage());
+      Log.e ("Exception CredentialDao.insert: " + e.getLocalizedMessage());
+      return false;
     }
   }
 
@@ -134,7 +74,11 @@ public final class CredentialDao {
 
   public static UserInfo findUserInfoById(String userId)
   {
-    String sql = "SELECT user_id, user, display_name FROM credentials WHERE user_id = ?";
+    String sql =
+      "SELECT p.user_id, p.email AS user, " +
+      "       (SELECT c.display_name FROM credentials c WHERE c.user_id = p.user_id " +
+      "        ORDER BY c.id DESC LIMIT 1) AS display_name " +
+      "FROM pending_users p WHERE p.user_id = ?";
     try (Connection conn = DB.open();
          PreparedStatement ps = conn.prepareStatement(sql))
     {
@@ -150,49 +94,55 @@ public final class CredentialDao {
     }
   }
 
-  public record CredentialSummary(String userId, String user, String displayName, String domain) {}
+  public record CredentialSummary(int id, String credentialId, String displayName,
+                                  String domain, long createdAt, String authenticator) {}
 
-  public static List<CredentialSummary> findAll()
+  public static List<CredentialSummary> findByUserId(String userId)
   {
     List<CredentialSummary> result = new ArrayList<>();
-    String sql = "SELECT user_id, user, display_name, domain FROM credentials ORDER BY user";
+    String sql = "SELECT id, credential_id, display_name, domain, created_at, authenticator " +
+                 "FROM credentials WHERE user_id = ? ORDER BY id";
     try (Connection conn = DB.open();
-         PreparedStatement ps = conn.prepareStatement(sql);
-         ResultSet rs = ps.executeQuery())
+         PreparedStatement ps = conn.prepareStatement(sql))
     {
-      while (rs.next())
-        result.add(new CredentialSummary(rs.getString("user_id"), rs.getString("user"),
-                                         rs.getString("display_name"), rs.getString("domain")));
+      ps.setString(1, userId);
+      try (ResultSet rs = ps.executeQuery())
+      {
+        while (rs.next())
+          result.add(new CredentialSummary(rs.getInt("id"), rs.getString("credential_id"),
+                                           rs.getString("display_name"), rs.getString("domain"),
+                                           rs.getLong("created_at"), rs.getString("authenticator")));
+      }
     } catch (SQLException e) {
-      Log.e("Exception CredentialDao.findAll: " + e.getLocalizedMessage());
+      Log.e("Exception CredentialDao.findByUserId: " + e.getLocalizedMessage());
     }
     return result;
   }
 
-  public static void updateDisplayName(String userId, String displayName)
+  public static void updateDisplayName(int id, String displayName)
   {
-    String sql = "UPDATE credentials SET display_name = ? WHERE user_id = ?";
+    String sql = "UPDATE credentials SET display_name = ? WHERE id = ?";
     try (Connection conn = DB.open();
          PreparedStatement ps = conn.prepareStatement(sql))
     {
       ps.setString(1, displayName);
-      ps.setString(2, userId);
+      ps.setInt(2, id);
       ps.executeUpdate();
     } catch (SQLException e) {
       Log.e("Exception CredentialDao.updateDisplayName: " + e.getLocalizedMessage());
     }
   }
 
-  public static void deleteByUserId(String userId)
+  public static void deleteById(int id)
   {
-    String sql = "DELETE FROM credentials WHERE user_id = ?";
+    String sql = "DELETE FROM credentials WHERE id = ?";
     try (Connection conn = DB.open();
          PreparedStatement ps = conn.prepareStatement(sql))
     {
-      ps.setString(1, userId);
+      ps.setInt(1, id);
       ps.executeUpdate();
     } catch (SQLException e) {
-      Log.e("Exception CredentialDao.deleteByUserId: " + e.getLocalizedMessage());
+      Log.e("Exception CredentialDao.deleteById: " + e.getLocalizedMessage());
     }
   }
 

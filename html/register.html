@@ -194,6 +194,7 @@
       const publicKey = await startRes.json();
       publicKey.challenge = base64urlToBytes(publicKey.challenge);
       publicKey.user.id   = base64urlToBytes(publicKey.user.id);
+      (publicKey.excludeCredentials || []).forEach(c => { c.id = base64urlToBytes(c.id); });
 
       setStatus('Waiting for authenticator…', 'info');
       const cred = await navigator.credentials.create({ publicKey });

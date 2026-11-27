@@ -22,31 +22,39 @@ public class AdminPage
   private static final String BTN_SAVE      = "padding:4px 12px;font-size:0.8rem;cursor:pointer;border:none;border-radius:6px;background:#4a6cf7;color:#fff;margin:0;";
   private static final String BTN_CANCEL    = "padding:4px 10px;font-size:0.8rem;cursor:pointer;border:1px solid #ddd;border-radius:6px;background:#fff;color:#666;margin:0;";
 
-  public static String render(List<PendingUserDao.PendingUser> pending,
-                               List<CredentialDao.CredentialSummary> credentials)
+  // ── Pages ─────────────────────────────────────────────────────────────────
+
+  public static String renderUsers(List<PendingUserDao.PendingUser> users)
+  {
+    return page("FIDO2 Admin", addUserCard(), usersCard(users));
+  }
+
+  public static String renderUser(PendingUserDao.PendingUser u,
+                                  List<CredentialDao.CredentialSummary> credentials)
+  {
+    return page(u.email() + " — FIDO2 Admin", userCard(u), credentialsCard(u, credentials));
+  }
+
+  private static String page(String pageTitle, DomContent... cards)
   {
     return document(html(
       head(
         meta().withCharset("UTF-8"),
-        title("FIDO2 Admin"),
+        title(pageTitle),
         style(CSS + AdminNav.CSS)
       ),
       body(
         div().withStyle(AdminNav.FRAME).with(
           AdminNav.bar("users"),
-          div().withId("tab-users").withClass("tab-content").with(
-            addUserCard(),
-            pendingUsersCard(pending)
-          ),
-          div().withId("tab-credentials").withClass("tab-content").withStyle("display:none").with(
-            credentialsCard(credentials)
-          )
+          div().withClass("content").with(cards)
         ),
         AdminNav.footer(),
         script(rawHtml(JS))
       )
     ));
   }
+
+  // ── User list ─────────────────────────────────────────────────────────────
 
   private static DomContent addUserCard()
   {
@@ -65,39 +73,33 @@ public class AdminPage
     );
   }
 
-  private static DomContent pendingUsersCard(List<PendingUserDao.PendingUser> pending)
+  private static DomContent usersCard(List<PendingUserDao.PendingUser> users)
   {
     return div().withClass("card").with(
-      h2("Pre-registered Users"),
+      h2("Users"),
       input().withType("text").withClass("search-input")
         .withPlaceholder("Search…")
         .attr("oninput", "filterTable(this,'tbody-users')"),
-      pending.isEmpty()
+      users.isEmpty()
         ? p("No users yet.").withClass("empty")
         : table(
             thead(tr(
               th("E-Mail").withStyle(HEAD),
-              th("Token").withStyle(HEAD),
-              th("Status").withStyle(HEAD),
+              th("Keys").withStyle(HEAD),
+              th("Registration code").withStyle(HEAD),
               th("").withStyle(HEAD)
             )),
             tbody().withId("tbody-users").with(
-              each(pending, u -> tr(
-                td(u.email()).withStyle(CELL),
-                td(span(u.regToken()).withClass("token")).withStyle(CELL),
-                td(u.used()
-                  ? span("Registered").withStyle(BADGE_OK)
-                  : span("Pending").withStyle(BADGE_PENDING)
-                ).withStyle(CELL),
+              each(users, u -> tr(
+                td(a(u.email()).withHref(userUrl(u)).withClass("user-link")).withStyle(CELL),
+                td(String.valueOf(u.keyCount())).withStyle(CELL),
+                td(codeCell(u)).withStyle(CELL),
                 td(
-                  form()
-                    .withAction(P + "/admin/users/delete")
-                    .withMethod("post")
-                    .with(
-                      input().withType("hidden").withName("id")
-                        .withValue(String.valueOf(u.id())),
-                      button("Delete").withType("submit").withStyle(BTN_DEL)
-                    )
+                  div().withStyle("display:flex;align-items:center;gap:6px;flex-wrap:wrap;").with(
+                    a("Keys").withHref(userUrl(u)).withStyle(BTN_EDIT + "text-decoration:none;"),
+                    newCodeForm(u, "list"),
+                    deleteUserForm(u)
+                  )
                 ).withStyle(CELL)
               ))
             )
@@ -105,32 +107,51 @@ public class AdminPage
     );
   }
 
-  private static DomContent credentialsCard(List<CredentialDao.CredentialSummary> credentials)
+  // ── User detail ───────────────────────────────────────────────────────────
+
+  private static DomContent userCard(PendingUserDao.PendingUser u)
   {
     return div().withClass("card").with(
-      h2("Registered Credentials"),
-      input().withType("text").withClass("search-input")
-        .withPlaceholder("Search…")
-        .attr("oninput", "filterTable(this,'tbody-creds')"),
+      h2(u.email()),
+      table(
+        tr(td("Keys").withStyle(CELL + "width:200px;color:#666;"),
+           td(String.valueOf(u.keyCount())).withStyle(CELL)),
+        tr(td("Registration code").withStyle(CELL + "color:#666;"),
+           td(codeCell(u)).withStyle(CELL))
+      ),
+      div().withStyle("display:flex;gap:6px;margin-top:16px;").with(
+        newCodeForm(u, "user"),
+        deleteUserForm(u)
+      )
+    );
+  }
+
+  private static DomContent credentialsCard(PendingUserDao.PendingUser u,
+                                            List<CredentialDao.CredentialSummary> credentials)
+  {
+    return div().withClass("card").with(
+      h2("Registered Keys"),
       credentials.isEmpty()
-        ? p("No credentials registered yet.").withClass("empty")
+        ? p("No keys registered yet.").withClass("empty")
         : table(
             thead(tr(
-              th("User").withStyle(HEAD),
               th("Display Name").withStyle(HEAD),
+              th("Authenticator").withStyle(HEAD),
               th("Domain").withStyle(HEAD),
+              th("Registered").withStyle(HEAD),
               th("").withStyle(HEAD)
             )),
-            tbody().withId("tbody-creds").with(
+            tbody().with(
               each(credentials, c -> tr(
-                td(c.user()).withStyle(CELL),
                 td(
                   span(c.displayName() != null ? c.displayName() : "").withClass("dn-text"),
                   input().withType("text").withClass("dn-input")
                     .withValue(c.displayName() != null ? c.displayName() : "")
                     .withStyle("display:none")
                 ).withStyle(CELL),
+                td(c.authenticator() != null ? c.authenticator() : "—").withStyle(CELL),
                 td(c.domain() != null ? c.domain() : "—").withStyle(CELL),
+                td(formatDate(c.createdAt())).withStyle(CELL),
                 td(
                   div().withStyle("display:flex;align-items:center;gap:6px;flex-wrap:wrap;").with(
                     button("Edit").withType("button")
@@ -144,7 +165,8 @@ public class AdminPage
                         .withClass("form-rename")
                         .withStyle("display:contents")
                         .with(
-                          input().withType("hidden").withName("userId").withValue(c.userId()),
+                          input().withType("hidden").withName("id").withValue(String.valueOf(c.id())),
+                          input().withType("hidden").withName("user").withValue(String.valueOf(u.id())),
                           input().withType("hidden").withName("displayName").withClass("dn-value"),
                           button("Save").withType("submit").withStyle(BTN_SAVE)
                         ),
@@ -156,8 +178,10 @@ public class AdminPage
                       .withAction(P + "/admin/credential/delete")
                       .withMethod("post")
                       .withStyle("display:contents")
+                      .attr("onsubmit", "return confirm('Delete this key?')")
                       .with(
-                        input().withType("hidden").withName("userId").withValue(c.userId()),
+                        input().withType("hidden").withName("id").withValue(String.valueOf(c.id())),
+                        input().withType("hidden").withName("user").withValue(String.valueOf(u.id())),
                         button("Delete").withType("submit").withStyle(BTN_DEL)
                       )
                   )
@@ -168,13 +192,64 @@ public class AdminPage
     );
   }
 
+  // ── Shared parts ──────────────────────────────────────────────────────────
+
+  // Pending: code is shown until a key has been registered with it.
+  private static DomContent codeCell(PendingUserDao.PendingUser u)
+  {
+    return u.used()
+      ? span("Used").withStyle(BADGE_OK)
+      : span(span(u.regToken()).withClass("token"), span(" Pending").withStyle(BADGE_PENDING + "margin-left:8px;"));
+  }
+
+  private static DomContent newCodeForm(PendingUserDao.PendingUser u, String back)
+  {
+    return form()
+      .withAction(P + "/admin/users/newcode")
+      .withMethod("post")
+      .withStyle("display:contents")
+      .with(
+        input().withType("hidden").withName("id").withValue(String.valueOf(u.id())),
+        input().withType("hidden").withName("back").withValue(back),
+        button("New code").withType("submit").withStyle(BTN_EDIT)
+      );
+  }
+
+  private static DomContent deleteUserForm(PendingUserDao.PendingUser u)
+  {
+    return form()
+      .withAction(P + "/admin/users/delete")
+      .withMethod("post")
+      .withStyle("display:contents")
+      .attr("onsubmit", "return confirm('Delete this user and all registered keys?')")
+      .with(
+        input().withType("hidden").withName("id").withValue(String.valueOf(u.id())),
+        button("Delete").withType("submit").withStyle(BTN_DEL)
+      );
+  }
+
+  private static String userUrl(PendingUserDao.PendingUser u)
+  {
+    return P + "/admin/user?id=" + u.id();
+  }
+
+  private static String formatDate(long epochSeconds)
+  {
+    if (epochSeconds <= 0) return "—";
+    return java.time.format.DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm")
+      .withZone(java.time.ZoneId.systemDefault())
+      .format(java.time.Instant.ofEpochSecond(epochSeconds));
+  }
+
   private static final String CSS =
     "*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }" +
     "body { font-family: Arial, Helvetica, sans-serif; background: #f5f5f5; padding: 32px; }" +
     "h2 { font-size: 1rem; color: #1a1a2e; margin-bottom: 16px; }" +
     ".card { background: #fff; border-radius: 12px; border: 1px solid #eee;" +
     "        padding: 24px; margin-bottom: 24px; }" +
-    ".tab-content .card:last-child { margin-bottom: 0; }" +
+    ".content .card:last-child { margin-bottom: 0; }" +
+    ".user-link { color:#1a1a2e; text-decoration:none; }" +
+    ".user-link:hover { text-decoration:underline; }" +
     "table { width: 100%; border-collapse: collapse; }" +
     "input[type=email] {" +
     "  padding: 8px 12px; border: 1px solid #ddd; border-radius: 8px;" +
@@ -193,18 +268,6 @@ public class AdminPage
     "  font-size:0.88rem; width:200px; outline:none; }";
 
   private static final String JS =
-    // tab switching — hash-based so refresh lands on same tab
-    "function switchTab(name){" +
-    "  document.querySelectorAll('.tab-content').forEach(function(el){" +
-    "    el.style.display=el.id==='tab-'+name?'':'none';" +
-    "  });" +
-    "  document.querySelectorAll('.nav-tile[data-tab]').forEach(function(b){" +
-    "    b.classList.toggle('active',b.dataset.tab===name);" +
-    "  });" +
-    "  history.replaceState(null,'',location.pathname+location.search+'#'+name);" +
-    "}" +
-    // activate tab from URL hash on load
-    "(function(){var h=location.hash.slice(1);if(h==='credentials')switchTab('credentials');})();" +
     // full-text search — filters tbody rows
     "function filterTable(inp,tbodyId){" +
     "  var q=inp.value.toLowerCase();" +

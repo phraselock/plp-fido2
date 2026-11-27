@@ -12,6 +12,7 @@ import com.webauthn4j.data.attestation.AttestationObject;
 import com.webauthn4j.data.attestation.authenticator.AttestedCredentialData;
 import com.webauthn4j.data.attestation.authenticator.AuthenticatorData;
 import com.webauthn4j.data.attestation.authenticator.COSEKey;
+import com.webauthn4j.data.attestation.statement.CertificateBaseAttestationStatement;
 import com.webauthn4j.data.client.Origin;
 import com.webauthn4j.data.client.challenge.Challenge;
 import com.webauthn4j.data.client.challenge.DefaultChallenge;
@@ -26,6 +27,8 @@ import plp.lib.PendingUserDao;
 import plp.lib.PLTool;
 import plp.lib.SessionDao;
 
+import javax.naming.ldap.LdapName;
+import javax.naming.ldap.Rdn;
 import java.security.SecureRandom;
 import java.util.*;
 
@@ -60,9 +63,21 @@ public class WebAuthn
     // 2. Store challenge (in session)
     ctx.sessionAttribute("challenge", challengeB64);
 
-    byte[] userId = PLTool.generateRandom(32);
-    // 3. Example user (dynamically resolved later)
+    // 3. User ID: fixed per user (created by the admin), so every key
+    //    registered for this user belongs to the same account.
+    PendingUserDao.PendingUser pu = PendingUserDao.findByEmail(user);
+    byte[] userId = PLTool.hexStringToByteArray(pu.userId());
     String userIdB64 = PLTool.b64encode2String(userId);
+
+    // Keys already registered for this user: the authenticator refuses to
+    // register the same key twice.
+    List<Map<String, Object>> excludeCredentials = new ArrayList<>();
+    for (CredentialDao.CredentialSummary c : CredentialDao.findByUserId(pu.userId()))
+    {
+      excludeCredentials.add(Map.of(
+        "type", "public-key",
+        "id",   PLTool.b64encode2String(PLTool.hexStringToByteArray(c.credentialId()))));
+    }
 
     Map<String, Object> response = Map.of(
       "challenge",  challengeB64,
@@ -70,7 +85,9 @@ public class WebAuthn
         "name", "PhraseLock",
         "id", rpid
       ),
-      "attestation", "none",
+      // "direct": the authenticator's attestation certificate is passed on;
+      // its subject names the authenticator (e.g. Yubico ... Serial ...).
+      "attestation", "direct",
       "timeout", 60000,
       "user", Map.of(
         "id", userIdB64,
@@ -81,6 +98,7 @@ public class WebAuthn
         Map.of("type", "public-key", "alg", -7),  // ES256
         Map.of("type", "public-key", "alg", -257) // RS256
       ),
+      "excludeCredentials", excludeCredentials,
       // Roaming only (USB/NFC/BLE hardware keys — no Touch ID / Windows Hello):
       "authenticatorSelection", Map.of(
         "authenticatorAttachment", "cross-platform",
@@ -94,8 +112,9 @@ public class WebAuthn
       // )
     );
 
-    ctx.sessionAttribute("userid", PLTool.byteArrayToHexString(userId));
-    CredentialDao.setUser(PLTool.byteArrayToHexString(userId),user,displayname,rpid);
+    ctx.sessionAttribute("userid", pu.userId());
+    ctx.sessionAttribute("reg_displayname", displayname);
+    ctx.sessionAttribute("reg_rpid", rpid);
     ctx.json(response);
   }
 
@@ -183,17 +202,58 @@ public class WebAuthn
     byte[] serializedCR = attestedCredentialDataConverter.convert(credentialRecord.getAttestedCredentialData());
 
 
+    String authenticator = authenticatorName(attObj);
+
     String userid = ctx.sessionAttribute("userid");
-    CredentialDao.setCredentialRecord(userid,PLTool.byteArrayToHexString(serializedCR));
-    CredentialDao.setCredentialId(userid,PLTool.byteArrayToHexString(credentialId));
-    CredentialDao.setPublicKey(userid,PLTool.byteArrayToHexString(publicKey));
-    CredentialDao.setSignCounter(userid,authData.getSignCount());
+    boolean stored = CredentialDao.insert(
+      userid,
+      ctx.sessionAttribute("reg_displayname"),
+      ctx.sessionAttribute("reg_rpid"),
+      PLTool.byteArrayToHexString(credentialId),
+      PLTool.byteArrayToHexString(serializedCR),
+      PLTool.byteArrayToHexString(publicKey),
+      authData.getSignCount(),
+      authenticator);
+    if (!stored)
+    {
+      ctx.status(400).json((Map.of("success", false,"reason","Storing credential failed")));
+      return;
+    }
 
     // Mark registration token as used
     String regEmail = ctx.sessionAttribute("reg_email");
     if (regEmail != null) PendingUserDao.markUsed(regEmail);
 
     ctx.result("Registration successful!");
+  }
+
+  // Name of the authenticator from the attestation certificate subject
+  // ("O · CN"), or null if no certificate was sent (none/self attestation).
+  private static String authenticatorName(AttestationObject attObj)
+  {
+    try
+    {
+      if (attObj.getAttestationStatement() instanceof CertificateBaseAttestationStatement cb
+          && cb.getX5c() != null && !cb.getX5c().isEmpty())
+      {
+        String subject = cb.getX5c().get(0).getSubjectX500Principal().getName();
+        Log.i("[WebAuthn] Attestation certificate subject: " + subject);
+        String o = null, cn = null;
+        for (Rdn rdn : new LdapName(subject).getRdns())
+        {
+          if (rdn.getType().equalsIgnoreCase("O"))  o  = rdn.getValue().toString();
+          if (rdn.getType().equalsIgnoreCase("CN")) cn = rdn.getValue().toString();
+        }
+        if (o != null && cn != null) return o + " · " + cn;
+        return cn != null ? cn : (o != null ? o : subject);
+      }
+      Log.i("[WebAuthn] No attestation certificate (" + attObj.getFormat() + ")");
+    }
+    catch (Exception e)
+    {
+      Log.e("[WebAuthn] Reading attestation certificate failed: " + e.getMessage());
+    }
+    return null;
   }
 
   public static String generateChallenge()

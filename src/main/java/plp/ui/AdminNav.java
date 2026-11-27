@@ -15,18 +15,15 @@ public class AdminNav
     "background:white;border:0.5px solid #c0c0c0;" +
     "border-radius:12px;box-shadow:0 2px 6px rgba(0,0,0,0.1);";
 
-  // active: "users" | "credentials" | "appconfig"
+  // active: "appconfig" | "users"
   public static DomContent bar(String active)
   {
-    boolean onUsersPage = active.equals("users") || active.equals("credentials");
-
     return div().with(
       div()
         .withStyle("display:flex;gap:8px;flex-wrap:wrap;margin-bottom:28px;align-items:center;")
         .with(
           tile(P + "/admin/appconfig", "Application", active.equals("appconfig")),
-          tabTile("users",       "Users",       active, onUsersPage),
-          tabTile("credentials", "Credentials", active, onUsersPage),
+          tile(P + "/admin/users",     "Users",       active.equals("users")),
           img().withSrc(P + "/img/logo.png")
             .withAlt("Logo")
             .withStyle(
@@ -68,21 +65,6 @@ public class AdminNav
         "max-width:1024px;margin:16px auto 40px auto;" +
         "text-align:center;font-size:11px;color:#aaa;")
       .withText("© " + year + " iPoxo IT GmbH — All rights reserved");
-  }
-
-  // Users / Credentials are tabs of the same page: on that page they switch
-  // client-side, from other pages they link to it with the tab as hash.
-  private static DomContent tabTile(String tab, String label, String active, boolean onUsersPage)
-  {
-    var a = a(label)
-      .withHref(P + "/admin/users#" + tab)
-      .withClass("nav-tile" + (tab.equals(active) ? " active" : ""))
-      .attr("data-tab", tab);
-    if (onUsersPage)
-    {
-      a.attr("onclick", "switchTab('" + tab + "');return false;");
-    }
-    return a;
   }
 
   private static DomContent tile(String href, String label, boolean active)

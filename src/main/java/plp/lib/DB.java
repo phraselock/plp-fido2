@@ -9,7 +9,7 @@ import java.sql.*;
 public class DB {
 
   private static final String DB_NAME             = "phraselockWebAuthn.db";
-  private static final int CURRENT_DB_VERSION     = 3;
+  private static final int CURRENT_DB_VERSION     = 5;
 
   private static Path resolveDbPath() {
     try {
@@ -48,11 +48,19 @@ public class DB {
       {
         int currentDBVersion = getDBVersion();
 
+        // v4: one user -> n credentials. No migration, older DBs start fresh.
+        if (currentDBVersion < 4)
+        {
+          RESET_DB = true;
+          Log.i("[DB] Version " + currentDBVersion + " -> " + CURRENT_DB_VERSION + ": tables recreated");
+        }
+
         checkDBVersion(false);
 
         checkExsist_credentials(RESET_DB);
         checkExist_pendingUsers(RESET_DB);
         checkExist_sessions(RESET_DB);
+        ensureColumn("credentials", "authenticator", "TEXT DEFAULT NULL");   // v5
 
         if(currentDBVersion!= CURRENT_DB_VERSION)
         {
@@ -172,6 +180,7 @@ public class DB {
                 CREATE TABLE pending_users (
                     id         INTEGER PRIMARY KEY AUTOINCREMENT,
                     email      TEXT NOT NULL UNIQUE,
+                    user_id    TEXT NOT NULL UNIQUE,
                     reg_token  TEXT NOT NULL,
                     created_at INTEGER DEFAULT (unixepoch()),
                     used       INTEGER DEFAULT 0
@@ -223,18 +232,19 @@ public class DB {
                   CREATE TABLE credentials (
                       id INTEGER PRIMARY KEY AUTOINCREMENT,
                       user_id TEXT NOT NULL,
-                      user TEXT NOT NULL,
                       display_name TEXT DEFAULT NULL,
                       domain TEXT DEFAULT NULL,
-                      credential_id TEXT DEFAULT NULL,
+                      credential_id TEXT NOT NULL,
                       credential_Record TEXT DEFAULT NULL,
                       public_key TEXT DEFAULT NULL,
                       signature_counter INTEGER DEFAULT 0,
-                      discoverable INTEGER DEFAULT 0
+                      discoverable INTEGER DEFAULT 0,
+                      created_at INTEGER DEFAULT (unixepoch()),
+                      authenticator TEXT DEFAULT NULL
                   );
             """);
 
-            st.executeUpdate("CREATE UNIQUE INDEX credentials_idx01 ON credentials (user_id);");
+            st.executeUpdate("CREATE INDEX credentials_idx01 ON credentials (user_id);");
             st.executeUpdate("CREATE UNIQUE INDEX credentials_idx02 ON credentials (credential_id);");
           }
           conn.commit();
@@ -291,4 +301,23 @@ public class DB {
   }
 
 
+  // Adds a column to an existing table if it is missing (schema upgrade without data loss).
+  public static void ensureColumn(String table, String column, String definition)
+  {
+    try (Connection conn = DB.open();
+         Statement st = conn.createStatement())
+    {
+      try (ResultSet rs = st.executeQuery("PRAGMA table_info(" + table + ")"))
+      {
+        while (rs.next())
+        {
+          if (rs.getString("name").equalsIgnoreCase(column)) return;
+        }
+      }
+      st.executeUpdate("ALTER TABLE " + table + " ADD COLUMN " + column + " " + definition);
+      Log.i("[DB] Column added: " + table + "." + column);
+    } catch (SQLException e) {
+      Log.e("Exception DB.ensureColumn: " + e.getLocalizedMessage());
+    }
+  }
 }

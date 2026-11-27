@@ -60,6 +60,7 @@ function _WebAuthnLib(param)
 
             publicKey.challenge = base64urlToBytes(publicKey.challenge);
             publicKey.user.id   = base64urlToBytes(publicKey.user.id);
+            (publicKey.excludeCredentials || []).forEach(c => { c.id = base64urlToBytes(c.id); });
 
             //alert(JSON.stringify(publicKey))
 
